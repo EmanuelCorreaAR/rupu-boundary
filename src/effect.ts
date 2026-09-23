@@ -1,18 +1,19 @@
 /**
- * Domain effect boundary — FP core.
+ * Domain effect boundary — FP core + sealed write port.
  *
  * Probabilistic (agent JSON) enters as data.
  * Pure functions decide.
- * The only write is commit → bank.transferCAS.
- *
- * There is no exported unlocked transfer.
+ * Write capability is injected at construction and never returned on the
+ * application-facing API.
  */
 
-import {
-  FakeBank,
-  type AccountSnapshot,
-  type TransferFailure,
-  type TransferIntent,
+import type {
+  AccountSnapshot,
+  CasResult,
+  ReadPort,
+  TransferFailure,
+  TransferIntent,
+  WritePort,
 } from "./bank.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -84,8 +85,8 @@ export type Committed = {
 };
 
 /**
- * Opaque single-use capability. Not a plain DTO — body lives in the vault.
- * Forging a structural twin does nothing: commit looks up the vault by token.
+ * Opaque single-use capability. Body lives in the vault.
+ * Forging a structural twin does nothing.
  */
 export type Executable = {
   readonly tag: "Executable";
@@ -106,10 +107,6 @@ function seal(intent: TransferIntent, evidence: Evidence): Executable {
   return Object.freeze({ tag: "Executable", __token: token });
 }
 
-function peek(executable: Executable): SealedBody | null {
-  return vault.get(executable.__token) ?? null;
-}
-
 function consume(executable: Executable): Result<SealedBody, string> {
   const body = vault.get(executable.__token);
   if (!body) return err("forged_or_unknown_executable");
@@ -119,7 +116,6 @@ function consume(executable: Executable): Result<SealedBody, string> {
   return ok(body);
 }
 
-/** Test/diag only: how many live capabilities remain. */
 export function liveExecutableCount(): number {
   return vault.size;
 }
@@ -192,6 +188,11 @@ export const accountActive: Policy = (_intent, from, to) => {
   return { pass: true };
 };
 
+export const defaultPolicies: readonly Policy[] = Object.freeze([
+  sufficientBalance,
+  accountActive,
+]);
+
 export type ParseFailure = { readonly code: "invalid_shape"; readonly detail: string };
 
 /** Pure: unknown agent output → Proposal | Err */
@@ -223,11 +224,9 @@ export type EvaluateInput = {
 
 /**
  * PURE evaluate: Proposal + snapshots + policies → Denied | Executable.
- * No bank I/O. Caller must have observed already.
+ * No I/O.
  */
-export function evaluate(
-  input: EvaluateInput,
-): Result<Executable, Denied> {
+export function evaluate(input: EvaluateInput): Result<Executable, Denied> {
   const { proposal, from, to, policies, observedAt } = input;
   const failed: PolicyFailure[] = [];
   for (const policy of policies) {
@@ -253,119 +252,148 @@ export type CommitFailure =
   | { readonly tag: "Spent"; readonly reason: string }
   | { readonly tag: "Bank"; readonly error: TransferFailure };
 
+export type TransferEffect = {
+  readonly propose: typeof propose;
+  readonly prepare: (
+    proposal: Proposal,
+    clock?: () => string,
+  ) => Result<Executable, Denied | Unknown>;
+  readonly commit: (executable: Executable) => Result<Committed, CommitFailure>;
+  /** Pure evaluate exposed for tests / advanced callers — still no write. */
+  readonly evaluate: typeof evaluate;
+};
+
+export type CreateTransferEffectInput = {
+  readonly read: ReadPort;
+  /** Ownership: captured privately; never placed on the returned object. */
+  readonly write: WritePort;
+  readonly policies?: readonly Policy[];
+};
+
 /**
- * Effectful commit — the ONLY write path.
- * Re-observes, checks freshness against sealed evidence, then CAS.
+ * Build the application-facing effect API.
+ * The write port is closed over and is not enumerable on the result.
  */
-export function commit(
-  bank: FakeBank,
-  executable: Executable,
-): Result<Committed, CommitFailure> {
-  const sealed = consume(executable);
-  if (!sealed.ok) {
-    return err({ tag: "Spent", reason: sealed.error });
-  }
+export function createTransferEffect(
+  input: CreateTransferEffectInput,
+): TransferEffect {
+  const read = input.read;
+  const write = input.write;
+  const policies = input.policies ?? defaultPolicies;
 
-  const { intent, evidence } = sealed.value;
-
-  let from: AccountSnapshot | null;
-  let to: AccountSnapshot | null;
-  try {
-    from = bank.observe(intent.from);
-    to = bank.observe(intent.to);
-  } catch (e) {
-    return err({
-      tag: "Unknown",
-      intent,
-      reason: e instanceof Error ? e.message : "observe_failed",
+  const prepare = (
+    proposal: Proposal,
+    clock: () => string = () => new Date().toISOString(),
+  ): Result<Executable, Denied | Unknown> => {
+    const from = read.observe(proposal.intent.from);
+    const to = read.observe(proposal.intent.to);
+    if (!from || !to) {
+      return err({
+        tag: "Unknown",
+        intent: proposal.intent,
+        reason: "account_not_found_at_observe",
+      });
+    }
+    return evaluate({
+      proposal,
+      from,
+      to,
+      policies,
+      observedAt: clock(),
     });
-  }
+  };
 
-  if (!from || !to) {
-    return err({
-      tag: "Unknown",
-      intent,
-      reason: "account_missing_at_commit",
-    });
-  }
+  const commitFn = (
+    executable: Executable,
+  ): Result<Committed, CommitFailure> => {
+    const sealed = consume(executable);
+    if (!sealed.ok) {
+      return err({ tag: "Spent", reason: sealed.error });
+    }
 
-  const fromHash = hashSnapshot(from);
-  const toHash = hashSnapshot(to);
-  if (fromHash !== evidence.from.hash || toHash !== evidence.to.hash) {
-    return err({
-      tag: "Stale",
-      intent,
-      reason: "world_changed_since_evidence",
-      evidence,
-    });
-  }
+    const { intent, evidence } = sealed.value;
 
-  let cas: ReturnType<FakeBank["transferCAS"]>;
-  try {
-    cas = bank.transferCAS({
-      ...intent,
-      expectedFromVersion: evidence.from.version,
-    });
-  } catch (e) {
-    return err({
-      tag: "Unknown",
-      intent,
-      reason: e instanceof Error ? `adapter:${e.message}` : "adapter_threw",
-    });
-  }
+    let from: AccountSnapshot | null;
+    let to: AccountSnapshot | null;
+    try {
+      from = read.observe(intent.from);
+      to = read.observe(intent.to);
+    } catch (e) {
+      return err({
+        tag: "Unknown",
+        intent,
+        reason: e instanceof Error ? e.message : "observe_failed",
+      });
+    }
 
-  if (!cas.ok) {
-    if (cas.error.code === "version_conflict") {
+    if (!from || !to) {
+      return err({
+        tag: "Unknown",
+        intent,
+        reason: "account_missing_at_commit",
+      });
+    }
+
+    const fromHash = hashSnapshot(from);
+    const toHash = hashSnapshot(to);
+    if (fromHash !== evidence.from.hash || toHash !== evidence.to.hash) {
       return err({
         tag: "Stale",
         intent,
-        reason: "cas_version_conflict",
+        reason: "world_changed_since_evidence",
         evidence,
       });
     }
-    return err({ tag: "Bank", error: cas.error });
-  }
 
-  return ok(
-    Object.freeze({
-      tag: "Committed",
-      intent,
-      evidence,
-      fromVersionAfter: cas.value.from.version,
-    }),
-  );
-}
+    let cas: CasResult;
+    try {
+      cas = write.transferCAS({
+        ...intent,
+        expectedFromVersion: evidence.from.version,
+      });
+    } catch (e) {
+      return err({
+        tag: "Unknown",
+        intent,
+        reason: e instanceof Error ? `adapter:${e.message}` : "adapter_threw",
+      });
+    }
 
-/** Default policy set for the spike. */
-export const defaultPolicies: readonly Policy[] = Object.freeze([
-  sufficientBalance,
-  accountActive,
-]);
+    if (!cas.ok) {
+      if (cas.error.code === "version_conflict") {
+        return err({
+          tag: "Stale",
+          intent,
+          reason: "cas_version_conflict",
+          evidence,
+        });
+      }
+      return err({ tag: "Bank", error: cas.error });
+    }
 
-/**
- * Convenience orchestration (still thin): observe → pure evaluate.
- * Keeps I/O at the edges.
- */
-export function prepare(
-  bank: FakeBank,
-  proposal: Proposal,
-  policies: readonly Policy[] = defaultPolicies,
-  clock: () => string = () => new Date().toISOString(),
-): Result<Executable, Denied | Unknown> {
-  const from = bank.observe(proposal.intent.from);
-  const to = bank.observe(proposal.intent.to);
-  if (!from || !to) {
-    return err({
-      tag: "Unknown",
-      intent: proposal.intent,
-      reason: "account_not_found_at_observe",
-    });
-  }
-  return evaluate({
-    proposal,
-    from,
-    to,
-    policies,
-    observedAt: clock(),
+    return ok(
+      Object.freeze({
+        tag: "Committed",
+        intent,
+        evidence,
+        fromVersionAfter: cas.value.from.version,
+      }),
+    );
+  };
+
+  // Explicit surface — no write/read ports attached.
+  return Object.freeze({
+    propose,
+    prepare,
+    commit: commitFn,
+    evaluate,
   });
 }
+
+/** Keys an application is allowed to see on the effect handle. */
+export const TRANSFER_EFFECT_KEYS = Object.freeze([
+  "propose",
+  "prepare",
+  "commit",
+  "evaluate",
+] as const);

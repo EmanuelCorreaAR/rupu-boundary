@@ -1,6 +1,8 @@
 /**
- * Hostile fake bank — the only mutable world in the spike.
- * Reads return immutable snapshots. Writes are CAS-only.
+ * Hostile fake bank — ports, not a god-object handed to the app.
+ *
+ * Composition root may hold read + write.
+ * Application code should receive only `read` (optional) and the effect handle.
  */
 
 export type AccountId = string;
@@ -30,28 +32,60 @@ export type TransferFailure =
   | { readonly code: "same_account" }
   | { readonly code: "invalid_amount" };
 
+export type CasResult =
+  | { ok: true; value: { from: AccountSnapshot; to: AccountSnapshot } }
+  | { ok: false; error: TransferFailure };
+
+/** Read capability — safe to hand to application / UI. */
+export type ReadPort = {
+  readonly observe: (id: AccountId) => AccountSnapshot | null;
+};
+
+/**
+ * Write capability — must be injected into the runtime and never returned
+ * on the application-facing effect API.
+ */
+export type WritePort = {
+  readonly transferCAS: (req: TransferCasRequest) => CasResult;
+};
+
+export type BankStats = {
+  transferAttempts: number;
+  successfulTransfers: number;
+};
+
+export type OpenBank = {
+  readonly read: ReadPort;
+  /**
+   * Take the write port exactly once (ownership transfer into the runtime).
+   * After this, the composition root no longer holds a usable write reference
+   * unless it kept a copy before calling takeWritePort — don't.
+   */
+  readonly takeWritePort: () => WritePort;
+  readonly seed: (id: AccountId, balance: number, active?: boolean) => void;
+  readonly stats: () => Readonly<BankStats>;
+  /** Test / harness: make the next CAS throw (simulates adapter failure). */
+  readonly failNextTransfer: (error: Error) => void;
+  /**
+   * Test only: a second write handle that simulates an *external* actor
+   * (not the application). Does not count as the app write port.
+   */
+  readonly externalWrite: WritePort;
+};
+
 type MutableAccount = {
   balance: number;
   active: boolean;
   version: number;
 };
 
-export class FakeBank {
-  readonly #accounts = new Map<AccountId, MutableAccount>();
-  /** How many times transferCAS was invoked (including rejected). */
-  transferAttempts = 0;
-  /** How many times a CAS write actually mutated state. */
-  successfulTransfers = 0;
-  /** Optional hook to fail the adapter mid-flight. */
-  failNextTransfer: Error | null = null;
+class World {
+  readonly accounts = new Map<AccountId, MutableAccount>();
+  stats: BankStats = { transferAttempts: 0, successfulTransfers: 0 };
+  failNext: Error | null = null;
 
-  seed(id: AccountId, balance: number, active = true): void {
-    this.#accounts.set(id, { balance, active, version: 1 });
-  }
-
-  /** Pure-looking read: returns a frozen snapshot (copy). */
   observe(id: AccountId): AccountSnapshot | null {
-    const a = this.#accounts.get(id);
+    const a = this.accounts.get(id);
     if (!a) return null;
     return Object.freeze({
       id,
@@ -61,18 +95,12 @@ export class FakeBank {
     });
   }
 
-  /**
-   * Conditional transfer. Mutates only if from.version === expectedFromVersion.
-   * This is the sole write path — there is no unlocked transfer().
-   */
-  transferCAS(
-    req: TransferCasRequest,
-  ): ResultFromBank {
-    this.transferAttempts += 1;
+  transferCAS(req: TransferCasRequest): CasResult {
+    this.stats.transferAttempts += 1;
 
-    if (this.failNextTransfer) {
-      const e = this.failNextTransfer;
-      this.failNextTransfer = null;
+    if (this.failNext) {
+      const e = this.failNext;
+      this.failNext = null;
       throw e;
     }
 
@@ -83,8 +111,8 @@ export class FakeBank {
       return { ok: false, error: { code: "same_account" } };
     }
 
-    const from = this.#accounts.get(req.from);
-    const to = this.#accounts.get(req.to);
+    const from = this.accounts.get(req.from);
+    const to = this.accounts.get(req.to);
     if (!from) return { ok: false, error: { code: "not_found", account: req.from } };
     if (!to) return { ok: false, error: { code: "not_found", account: req.to } };
     if (!from.active) return { ok: false, error: { code: "inactive", account: req.from } };
@@ -112,7 +140,7 @@ export class FakeBank {
     from.version += 1;
     to.balance += req.amount;
     to.version += 1;
-    this.successfulTransfers += 1;
+    this.stats.successfulTransfers += 1;
 
     return {
       ok: true,
@@ -124,6 +152,34 @@ export class FakeBank {
   }
 }
 
-type ResultFromBank =
-  | { ok: true; value: { from: AccountSnapshot; to: AccountSnapshot } }
-  | { ok: false; error: TransferFailure };
+export function openBank(): OpenBank {
+  const world = new World();
+  let writeTaken = false;
+
+  const read: ReadPort = {
+    observe: (id) => world.observe(id),
+  };
+
+  const makeWrite = (): WritePort => ({
+    transferCAS: (req) => world.transferCAS(req),
+  });
+
+  return {
+    read,
+    takeWritePort: () => {
+      if (writeTaken) {
+        throw new Error("write_port_already_taken");
+      }
+      writeTaken = true;
+      return makeWrite();
+    },
+    seed: (id, balance, active = true) => {
+      world.accounts.set(id, { balance, active, version: 1 });
+    },
+    stats: () => ({ ...world.stats }),
+    failNextTransfer: (error) => {
+      world.failNext = error;
+    },
+    externalWrite: makeWrite(),
+  };
+}
