@@ -4,7 +4,7 @@
 
 Parte de la familia **Rupu**.
 
-**0.2.0 — API congelada.** Contrato: [CONTRACT.md](./CONTRACT.md).
+**0.2.0 — API estable (0.x sin breaks del core).** Contrato: [CONTRACT.md](./CONTRACT.md).
 
 Boundary es un protocolo general para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
 
@@ -101,7 +101,7 @@ npm install && npm test && npm run build
 
 ## Status
 
-**0.2.0** — core + `@rupu/boundary/etag` publicados; superficie congelada.
+**0.2.0** — core + `@rupu/boundary/etag` publicados; API estable en 0.x.
 
 
 ## Apoyar el proyecto

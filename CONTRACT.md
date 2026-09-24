@@ -1,10 +1,10 @@
-# Contract — @rupu/boundary 0.2 (API frozen)
+# Contract — @rupu/boundary 0.2 (API estable)
 
 ## One-liner
 
 Boundary is a general protocol to turn a decision into executable authority conditioned on observable evidence, with freshness verifiable up to the last point the write port allows.
 
-## Frozen public surface
+## Public surface (estable en 0.x)
 
 | Export | Symbols |
 |---|---|
@@ -14,7 +14,7 @@ Boundary is a general protocol to turn a decision into executable authority cond
 
 **Lifecycle:** `propose` (sync) → `prepare` (async) → `commit` (async).
 
-Breaking changes to this surface require a new major (or explicit 0.x minor with changelog callout). New core abstractions only if a real case cannot be expressed without breaking these guarantees.
+New **core** abstractions only if a real case cannot be expressed without breaking these guarantees — and then only at **1.0.0** (or later majors), never by quietly revising 0.2.
 
 ## Guarantees (T1)
 
@@ -36,5 +36,12 @@ Composition root seals write capability into `spec.write`. App holds `BoundaryHa
 
 ## Semver
 
-- **0.2.x** — frozen surface above; patches for bugs only
-- **0.3+** — additive adapters / docs; core breaks only with clear migration
+**Estable significa: no rompemos esta superficie en 0.x.**
+
+| Range | Allowed |
+|---|---|
+| **0.2.x** | Solo bugfixes sobre la superficie de arriba |
+| **0.3+** (0.x) | Solo aditivo: adapters nuevos (`@rupu/boundary/…`), docs, helpers opcionales que no cambien firmas ni semántica existentes |
+| **1.0.0** | Primera oportunidad de *revisar a propósito* el contrato del core si 0.2 estaba mal — con nota de migración. Preferimos llevar la semántica de 0.2 a 1.0 si aguantó. |
+
+Si no podemos cumplir la promesa sin un break antes de 1.0, lo decimos en el changelog y retiramos el claim de estabilidad — **no** publicamos un minor 0.x con breaking change silencioso.

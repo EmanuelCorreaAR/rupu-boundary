@@ -2,9 +2,9 @@
 
 ## 0.2.0
 
-### API freeze
+### API estable
 
-- Public surface frozen — see [CONTRACT.md](./CONTRACT.md).
+- Public surface **stable for all of 0.x** (no core breaks in minors) — see [CONTRACT.md](./CONTRACT.md).
 - `prepare` / `commit` are **async** (adapters may use `fetch`); sync `observe`/`write` still work.
 - One-liner: decision → executable authority conditioned on observable evidence; freshness up to the write port.
 
@@ -14,7 +14,7 @@
 
 ### Docs
 
-- README + CONTRACT; out of “experimental” framing for the frozen core.
+- README + CONTRACT; out of “experimental” framing for the stable core.
 
 ## 0.1.0 — experimental (yanked naming era)
 

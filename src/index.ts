@@ -1,5 +1,5 @@
 /**
- * @rupu/boundary — public API (v0.2 frozen)
+ * @rupu/boundary — public API (v0.2 stable)
  *
  * BoundarySpec<I,S,W> + propose → prepare → commit
  * Fixtures stay out of the package surface.
