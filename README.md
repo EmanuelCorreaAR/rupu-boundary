@@ -133,8 +133,7 @@ Demostrado en `tests/coverage-hole.test.ts`.
 
 ## Qué no garantiza
 
-No es policy engine, authz, Effect-TS ni motor de workflows.
-
+No es policy engine, authz, ni motor de workflows.
 No elimina TOCTOU multi-sistema, no inventa Coverage, no aporta durabilidad entre procesos, idempotencia remota ni atomicidad distribuida. Si el write client está ambient, T1 está roto.
 
 
@@ -149,7 +148,9 @@ npm run typecheck
 npm run build
 ```
 
-Consumidor hostil (refund): `tests/hostile-consumer.test.ts`.
+Consumidor hostil (refund OCC): `tests/hostile-consumer.test.ts`.  
+Otros modelos de concurrencia (HTTP ETag, remote sin CAS): `tests/concurrency-models.test.ts`.  
+Coverage hole: `tests/coverage-hole.test.ts`.
 
 
 ## Status
