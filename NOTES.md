@@ -83,7 +83,7 @@ Honest residual: a malicious composition root can keep `externalWrite` or copy t
 
 ## DX check
 
-Happy path stays short. Failures are tagged (`Denied` | `Stale` | `Unknown` | `Spent` | `Bank`).
+Happy path stays short. Failures are tagged (`Denied` | `Stale` | `Unknown` | `Spent` | `Write`).
 
 ## Verdict
 
@@ -95,4 +95,8 @@ Happy path stays short. Failures are tagged (`Denied` | `Stale` | `Unknown` | `S
 | DX propose→prepare→commit | **Pass** (preliminary) |
 | Strong anti-bypass (sealed write port) | **Pass** within ownership injection model |
 
-Next (only if productizing): one framework adapter, still without DI hell.
+## Generality
+
+See [GENERALITY.md](./GENERALITY.md) — transfer / refund / reserve on one `createEffect` runtime: **Pass**.
+
+Next (only if productizing): document `EffectSpec` contract; still no Mastra by default.

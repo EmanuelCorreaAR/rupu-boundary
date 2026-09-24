@@ -8,22 +8,35 @@ export {
 } from "./bank.js";
 export { ok, err, matchResult, type Result } from "./result.js";
 export {
-  propose,
-  evaluate,
-  createTransferEffect,
-  sufficientBalance,
-  accountActive,
-  defaultPolicies,
+  createEffect,
   liveExecutableCount,
   resetVault,
-  TRANSFER_EFFECT_KEYS,
-  type TransferEffect,
-  type Proposal,
+  EFFECT_HANDLE_KEYS,
+  type EffectHandle,
   type Executable,
+  type Proposal,
   type Denied,
   type Stale,
   type Unknown,
   type Committed,
-  type Evidence,
   type Policy,
+} from "./runtime.js";
+export {
+  createTransferEffect,
+  sufficientBalance,
+  accountActive,
+  defaultPolicies,
+  TRANSFER_EFFECT_KEYS,
+  type TransferEffect,
+  type TransferSnapshot,
 } from "./effect.js";
+export {
+  openPayments,
+  createRefundEffect,
+  type RefundEffect,
+} from "./fixtures/refund.js";
+export {
+  openWarehouse,
+  createReserveEffect,
+  type ReserveEffect,
+} from "./fixtures/inventory.js";
