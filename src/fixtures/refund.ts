@@ -5,9 +5,9 @@
 import { err, ok, type Result } from "../result.js";
 import {
   all,
-  createEffect,
+  createBoundary,
   type DeniedReasons,
-  type EffectHandle,
+  type BoundaryHandle,
   type ParseFailure,
   type PolicyFailure,
   type WriteFailure,
@@ -147,11 +147,11 @@ function parseRefund(raw: unknown): Result<RefundIntent, ParseFailure> {
   return ok(Object.freeze({ paymentId, amount }));
 }
 
-export type RefundEffect = EffectHandle<RefundIntent, PaymentState, RefundWitness>;
+export type RefundBoundary = BoundaryHandle<RefundIntent, PaymentState, RefundWitness>;
 
-export function createRefundEffect(world: PaymentsWorld): RefundEffect {
+export function createRefundBoundary(world: PaymentsWorld): RefundBoundary {
   const write = world.takeWritePort();
-  return createEffect({
+  return createBoundary({
     parse: parseRefund,
     spec: {
       observe: (intent) => {

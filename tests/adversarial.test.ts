@@ -1,22 +1,23 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { openBank, type OpenBank } from "../src/bank.js";
 import {
-  createTransferEffect,
-  resetVault,
+  createTransferBoundary,
+  createTransferBoundaryForTests,
   type Executable,
-  type TransferEffect,
+  type TransferBoundary,
 } from "../src/effect.js";
+import { resetVault } from "../src/testing.js";
 
 describe("adversarial battery", () => {
   let bank: OpenBank;
-  let transfer: TransferEffect;
+  let transfer: TransferBoundary;
 
   beforeEach(() => {
     resetVault();
     bank = openBank();
     bank.seed("alice", 100);
     bank.seed("bob", 0);
-    transfer = createTransferEffect({
+    transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });
@@ -108,12 +109,17 @@ describe("adversarial battery", () => {
   });
 
   it("7. TOCTOU: evidence version must match CAS; conflict → Stale", () => {
-    const p = transfer.propose({ from: "alice", to: "bob", amount: 25 });
+    // evaluate is test-harness only (not on app BoundaryHandle).
+    const harness = createTransferBoundaryForTests({
+      read: bank.read,
+      write: bank.externalWrite,
+    });
+    const p = harness.propose({ from: "alice", to: "bob", amount: 25 });
     if (!p.ok) return;
     const from = bank.read.observe("alice")!;
     const to = bank.read.observe("bob")!;
 
-    const decision = transfer.evaluate(p.value, {
+    const decision = harness.evaluate(p.value, {
       state: Object.freeze({ from, to }),
       witness: Object.freeze({ fromVersion: from.version }),
     });
@@ -127,7 +133,7 @@ describe("adversarial battery", () => {
       expectedFromVersion: from.version,
     });
 
-    const result = transfer.commit(decision.value);
+    const result = harness.commit(decision.value);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.tag).toBe("Stale");
@@ -208,11 +214,11 @@ describe("adversarial battery", () => {
 describe("purity boundaries", () => {
   beforeEach(() => resetVault());
 
-  it("13. evaluate is pure w.r.t bank writes", () => {
+  it("13. evaluate (test harness) is pure w.r.t bank writes", () => {
     const bank = openBank();
     bank.seed("alice", 50);
     bank.seed("bob", 0);
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundaryForTests({
       read: bank.read,
       write: bank.takeWritePort(),
     });
@@ -233,7 +239,7 @@ describe("purity boundaries", () => {
 
   it("14. propose freezes intent (Object.isFrozen)", () => {
     const bank = openBank();
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });

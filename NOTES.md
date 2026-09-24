@@ -8,7 +8,7 @@ FP constraint:
 - `observe` / `check` = **pure** (Data → Data); `all()` is external composition
 - `write(I, W)` = only write edge (CAS token = W, not full S)
 - freshness + vault = **runtime**
-- Write port owned via `takeWritePort()` → closed over in `createEffect`
+- Write port owned via `takeWritePort()` → closed over in `createBoundary`
 
 ## API shape (happy path)
 
@@ -17,13 +17,13 @@ const bank = openBank();
 bank.seed("alice", 100);
 bank.seed("bob", 0);
 
-const transfer = createTransferEffect({
+const transfer = createTransferBoundary({
   read: bank.read,
   write: bank.takeWritePort(), // ownership → runtime; not on app API
 });
 
 const proposal = transfer.propose(agentOutput); // pure
-const decision = transfer.prepare(proposal);    // observe + pure evaluate
+const decision = transfer.prepare(proposal);    // observe + check + seal
 const result = transfer.commit(decision);       // freshness + private CAS
 ```
 
@@ -46,11 +46,11 @@ Application code receives `transfer` (and optionally `read`). It never receives 
 | 10 | Policy deny | **Pass** — never calls transferCAS |
 | 11 | Object clone replay | **Pass** — shared token, already spent |
 | 12 | JSON round-trip forge | **Pass** — Symbol lost |
-| 13 | `evaluate` purity (no writes) | **Pass** |
+| 13 | `evaluate` (test harness) purity | **Pass** |
 | 14 | Propose freezes intent | **Pass** |
 | 15 | `takeWritePort` is single-take | **Pass** |
-| 16 | Effect keys = propose/prepare/commit/evaluate only | **Pass** |
-| 17 | App with only `TransferEffect` debits only via commit | **Pass** |
+| 16 | Effect keys = propose/prepare/commit only | **Pass** |
+| 17 | App with only `TransferBoundary` debits only via commit | **Pass** |
 | 18 | JSON of effect handle leaks no write | **Pass** |
 
 ## Sealed write port
@@ -60,8 +60,8 @@ APPLICATION / AGENT
         │ Proposal
         ▼
 ┌───────────────────────┐
-│   createTransferEffect│
-│  observe / evaluate / │
+│   createTransferBoundary│
+│  observe / prepare /  │
 │  vault / freshness /  │
 │  commit               │
 │        │              │
@@ -106,6 +106,18 @@ See [ALGEBRA.md](./ALGEBRA.md).
 - `Observation<S,W>` + `check(S)` + `write(W)`: **Pass** (behavior)
 - Kill eliminate **S**: **FAIL** (semantic displacement)
 - Kill eliminate **W**: **FAIL** (semantic displacement)
-- `EffectSpec<I,S,W>` **frozen v0**
+- `BoundarySpec<I,S,W>` **frozen v0**
 
-Next (later): formal property claim — not more domains / not Mastra.
+Candidate formal claim (draft): [PROPERTY.md](./PROPERTY.md).
+
+- Structural: sealed `W₀` is the sole write evidence through the API  
+- Full property only under adapter premise `Coverage(S₀, check, W₀)`  
+- Multi-object without atomic protected set → **degrade**, don’t add 2PC  
+
+Local authority under T1 survived (`evaluate` gated). Historical research notes stay in-repo.
+
+## Research stop + 0.1.0
+
+**No more papers to justify the package.** New abstractions only if a real case cannot be expressed without breaking guarantees.
+
+Shipped as `@rupu/boundary@0.1.0` experimental — public surface = `createBoundary` + ADTs; demos stay private to the repo. See [README.md](./README.md) / [CHANGELOG.md](./CHANGELOG.md).

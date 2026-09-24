@@ -12,10 +12,12 @@ import type {
 import { err, ok, type Result } from "./result.js";
 import {
   all,
-  createEffect,
-  EFFECT_HANDLE_KEYS,
+  createBoundary,
+  createBoundaryForTests,
+  BOUNDARY_HANDLE_KEYS,
   type DeniedReasons,
-  type EffectHandle,
+  type BoundaryHandle,
+  type BoundaryTestHandle,
   type Observation,
   type ParseFailure,
   type PolicyFailure,
@@ -23,11 +25,13 @@ import {
 } from "./runtime.js";
 
 export type { TransferIntent, AccountSnapshot } from "./bank.js";
+export { openBank, type OpenBank, type ReadPort, type WritePort } from "./bank.js";
 export {
-  createEffect,
+  createBoundary,
+  createBoundaryForTests,
   liveExecutableCount,
   resetVault,
-  EFFECT_HANDLE_KEYS,
+  BOUNDARY_HANDLE_KEYS,
   all,
   type Executable,
   type Proposal,
@@ -35,7 +39,8 @@ export {
   type Stale,
   type Unknown,
   type Committed,
-  type EffectHandle,
+  type BoundaryHandle,
+  type BoundaryTestHandle,
   type Observation,
 } from "./runtime.js";
 
@@ -85,7 +90,7 @@ export const accountActive = (
   return ok(undefined);
 };
 
-/** External composition — not part of EffectSpec. */
+/** External composition — not part of BoundarySpec. */
 export const defaultCheck = all(sufficientBalance, accountActive);
 
 function parseTransfer(raw: unknown): Result<TransferIntent, ParseFailure> {
@@ -109,30 +114,29 @@ function mapWriteError(e: TransferFailure): WriteFailure {
   return { code: e.code, detail: JSON.stringify(e) };
 }
 
-export type TransferEffect = EffectHandle<
+export type TransferBoundary = BoundaryHandle<
   TransferIntent,
   TransferState,
   TransferWitness
 >;
 
-export const TRANSFER_EFFECT_KEYS = EFFECT_HANDLE_KEYS;
+export const TRANSFER_BOUNDARY_KEYS = BOUNDARY_HANDLE_KEYS;
 
-export function createTransferEffect(input: {
+function transferSpec(input: {
   readonly read: ReadPort;
   readonly write: WritePort;
   readonly check?: (
     intent: TransferIntent,
     state: TransferState,
   ) => Result<void, DeniedReasons>;
-}): TransferEffect {
+}) {
   const read = input.read;
   const write = input.write;
   const check = input.check ?? defaultCheck;
-
-  return createEffect({
+  return {
     parse: parseTransfer,
     spec: {
-      observe: (intent) => {
+      observe: (intent: TransferIntent) => {
         const from = read.observe(intent.from);
         const to = read.observe(intent.to);
         if (!from || !to) {
@@ -145,7 +149,7 @@ export function createTransferEffect(input: {
         return ok(Object.freeze({ state, witness }));
       },
       check,
-      write: (intent, witness) => {
+      write: (intent: TransferIntent, witness: TransferWitness) => {
         const cas = write.transferCAS({
           ...intent,
           expectedFromVersion: witness.fromVersion,
@@ -154,5 +158,28 @@ export function createTransferEffect(input: {
         return ok(undefined);
       },
     },
-  });
+  };
+}
+
+export function createTransferBoundary(input: {
+  readonly read: ReadPort;
+  readonly write: WritePort;
+  readonly check?: (
+    intent: TransferIntent,
+    state: TransferState,
+  ) => Result<void, DeniedReasons>;
+}): TransferBoundary {
+  return createBoundary(transferSpec(input));
+}
+
+/** Test harness — exposes evaluate. Not for app Activities. */
+export function createTransferBoundaryForTests(input: {
+  readonly read: ReadPort;
+  readonly write: WritePort;
+  readonly check?: (
+    intent: TransferIntent,
+    state: TransferState,
+  ) => Result<void, DeniedReasons>;
+}): BoundaryTestHandle<TransferIntent, TransferState, TransferWitness> {
+  return createBoundaryForTests(transferSpec(input));
 }

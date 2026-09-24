@@ -6,7 +6,7 @@ Does `propose → prepare → commit` work only because `FakeBank` was tailored 
 
 ## Method
 
-One generic runtime (`createEffect<I,S>`). Three domain adapters that only swap:
+One generic runtime (`createBoundary<I,S>`). Three domain adapters that only swap:
 
 | Piece | Transfer | Refund | Inventory reserve |
 |---|---|---|---|
@@ -22,7 +22,7 @@ No new verbs. No framework adapters.
 
 **Pass** (spike evidence in `tests/generality.test.ts`).
 
-- All three expose exactly `EFFECT_HANDLE_KEYS`: propose, prepare, commit, evaluate.
+- All three expose exactly `EFFECT_HANDLE_KEYS`: propose, prepare, commit.
 - Happy path identical.
 - Stale after external mutation uses the same `Stale` ADT.
 - Refund of already-`REFUNDED` is `Denied` via policy — not a special lifecycle branch.
@@ -36,7 +36,7 @@ No new verbs. No framework adapters.
 | Compensate / saga | Orchestration outside this primitive |
 | Idempotent retry of same Executable | Still Spent → re-prepare (by design) |
 
-If product needs holds-with-expiry *inside* `prepare`, that would fail this kill-test. Expressing release as another `createEffect` keeps the abstraction.
+If product needs holds-with-expiry *inside* `prepare`, that would fail this kill-test. Expressing release as another `createBoundary` keeps the abstraction.
 
 ## Verdict
 
@@ -46,4 +46,4 @@ Within this threat model, the answer looks like a **general effect-correctness a
 observe versioned state → check invariants → conditional write
 ```
 
-Commit: keep pausing productization; next optional step is documenting the `EffectSpec` contract, not Mastra.
+Commit: keep pausing productization; next optional step is documenting the `BoundarySpec` contract, not Mastra.

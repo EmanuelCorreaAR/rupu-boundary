@@ -1,18 +1,18 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   openBank,
-  createTransferEffect,
-  resetVault,
-  TRANSFER_EFFECT_KEYS,
-  type TransferEffect,
-} from "../src/index.js";
+  createTransferBoundary,
+  TRANSFER_BOUNDARY_KEYS,
+  type TransferBoundary,
+} from "../src/effect.js";
+import { resetVault } from "../src/testing.js";
 
 /**
  * Simulated application module: only receives the effect handle (+ optional read).
  * It must not be able to reach a write-capable operation.
  */
 function runAppAgent(
-  transfer: TransferEffect,
+  transfer: TransferBoundary,
   agentOutput: unknown,
 ): { ok: boolean; aliceBalance?: number; read?: { observe: (id: string) => unknown } } {
   const proposal = transfer.propose(agentOutput);
@@ -32,14 +32,15 @@ describe("sealed write port", () => {
     expect(() => bank.takeWritePort()).toThrow(/write_port_already_taken/);
   });
 
-  it("16. effect handle exposes only propose/prepare/commit/evaluate", () => {
+  it("16. effect handle exposes only propose/prepare/commit (no evaluate)", () => {
     const bank = openBank();
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });
 
-    expect(Object.keys(transfer).sort()).toEqual([...TRANSFER_EFFECT_KEYS].sort());
+    expect(Object.keys(transfer).sort()).toEqual([...TRANSFER_BOUNDARY_KEYS].sort());
+    expect(transfer).not.toHaveProperty("evaluate");
     expect(transfer).not.toHaveProperty("write");
     expect(transfer).not.toHaveProperty("read");
     expect(transfer).not.toHaveProperty("transferCAS");
@@ -51,12 +52,12 @@ describe("sealed write port", () => {
     }
   });
 
-  it("17. app callback with only TransferEffect cannot debit except via commit", () => {
+  it("17. app callback with only TransferBoundary cannot debit except via commit", () => {
     const bank = openBank();
     bank.seed("alice", 100);
     bank.seed("bob", 0);
 
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });
@@ -76,7 +77,7 @@ describe("sealed write port", () => {
 
   it("18. JSON/inspect of effect handle does not leak write port", () => {
     const bank = openBank();
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });

@@ -1,11 +1,11 @@
-# Algebra — EffectSpec\<I, S, W\> v0 (frozen)
+# Algebra — BoundarySpec\<I, S, W\> v0 (frozen)
 
 ## Spec (public algebra)
 
 ```ts
 type Observation<S, W> = { state: S; witness: W }
 
-type EffectSpec<I, S, W> = {
+type BoundarySpec<I, S, W> = {
   observe(input: I): Result<Observation<S, W>, ObserveError>
   check(input: I, state: S): Result<void, DeniedReasons>
   write(input: I, witness: W): Result<void, WriteFailure>
@@ -17,7 +17,7 @@ type EffectSpec<I, S, W> = {
 | **S** | Knowledge sufficient to **decide** |
 | **W** | Evidence sufficient to **execute** against the world that was decided upon |
 
-Runtime (not EffectSpec): freshness, vault, sealed write port.  
+Runtime (not BoundarySpec): freshness, vault, sealed write port.  
 Outside the algebra: `parse` / schema / `policies[]` / `all()`.
 
 Facade: `propose → prepare → commit`.
@@ -45,7 +45,7 @@ Green tests alone do not count as a successful reduction. Semantic displacement 
 Proposed:
 
 ```ts
-type EffectSpec<I, W> = {
+type BoundarySpec<I, W> = {
   observe(input: I): Result<W, ObserveError>
   check(input: I, witness: W): Result<void, DeniedReasons>
   write(input: I, witness: W): Result<void, WriteFailure>
@@ -82,7 +82,7 @@ That is **W := S × W_cas**, not elimination of S.
 Proposed:
 
 ```ts
-type EffectSpec<I, S> = {
+type BoundarySpec<I, S> = {
   observe(input: I): Result<S, ObserveError>
   check(input: I, state: S): Result<void, DeniedReasons>
   write(input: I, state: S): Result<void, WriteFailure>
@@ -137,4 +137,6 @@ Both kills fail by semantic displacement in all three domains.
 
 `propose → prepare → commit` is the facade. **S / W is the model.**
 
-`EffectSpec<I, S, W>` is **frozen at v0**. Next product question (later): what formal property this expresses — not more domain fixtures.
+`BoundarySpec<I, S, W>` is **frozen at v0**.
+
+Formal property work: [PROPERTY.md](./PROPERTY.md) (not more fixtures).

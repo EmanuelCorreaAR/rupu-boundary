@@ -4,9 +4,9 @@
 
 import { err, ok, type Result } from "../result.js";
 import {
-  createEffect,
+  createBoundary,
   type DeniedReasons,
-  type EffectHandle,
+  type BoundaryHandle,
   type ParseFailure,
   type PolicyFailure,
   type WriteFailure,
@@ -123,11 +123,11 @@ function parseReserve(raw: unknown): Result<ReserveIntent, ParseFailure> {
   return ok(Object.freeze({ sku, qty }));
 }
 
-export type ReserveEffect = EffectHandle<ReserveIntent, StockState, ReserveWitness>;
+export type ReserveBoundary = BoundaryHandle<ReserveIntent, StockState, ReserveWitness>;
 
-export function createReserveEffect(world: WarehouseWorld): ReserveEffect {
+export function createReserveBoundary(world: WarehouseWorld): ReserveBoundary {
   const write = world.takeWritePort();
-  return createEffect({
+  return createBoundary({
     parse: parseReserve,
     spec: {
       observe: (intent) => {

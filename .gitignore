@@ -141,3 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Package build / publish artifacts (@rupu/boundary)
+dist/
+*.tgz

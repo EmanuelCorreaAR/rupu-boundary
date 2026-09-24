@@ -1,14 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import {
-  openBank,
-  createTransferEffect,
-  openPayments,
-  createRefundEffect,
-  openWarehouse,
-  createReserveEffect,
-  resetVault,
-  EFFECT_HANDLE_KEYS,
-} from "../src/index.js";
+import { openBank, createTransferBoundary } from "../src/effect.js";
+import { openPayments, createRefundBoundary } from "../src/fixtures/refund.js";
+import { openWarehouse, createReserveBoundary } from "../src/fixtures/inventory.js";
+import { BOUNDARY_HANDLE_KEYS } from "../src/index.js";
+import { resetVault } from "../src/testing.js";
 
 describe("generality kill-test — same lifecycle, three domains", () => {
   beforeEach(() => resetVault());
@@ -17,12 +12,12 @@ describe("generality kill-test — same lifecycle, three domains", () => {
     const bank = openBank();
     bank.seed("alice", 100);
     bank.seed("bob", 0);
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });
 
-    expect(Object.keys(transfer).sort()).toEqual([...EFFECT_HANDLE_KEYS].sort());
+    expect(Object.keys(transfer).sort()).toEqual([...BOUNDARY_HANDLE_KEYS].sort());
 
     const p = transfer.propose({ from: "alice", to: "bob", amount: 40 });
     expect(p.ok).toBe(true);
@@ -37,9 +32,9 @@ describe("generality kill-test — same lifecycle, three domains", () => {
   it("refund: propose → prepare → commit (no lifecycle exceptions)", () => {
     const payments = openPayments();
     payments.seed("pay_1", 50, "CAPTURED");
-    const refund = createRefundEffect(payments);
+    const refund = createRefundBoundary(payments);
 
-    expect(Object.keys(refund).sort()).toEqual([...EFFECT_HANDLE_KEYS].sort());
+    expect(Object.keys(refund).sort()).toEqual([...BOUNDARY_HANDLE_KEYS].sort());
 
     const p = refund.propose({ paymentId: "pay_1", amount: 50 });
     expect(p.ok).toBe(true);
@@ -54,9 +49,9 @@ describe("generality kill-test — same lifecycle, three domains", () => {
   it("inventory reserve: propose → prepare → commit", () => {
     const wh = openWarehouse();
     wh.seed("sku-tea", 10);
-    const reserve = createReserveEffect(wh);
+    const reserve = createReserveBoundary(wh);
 
-    expect(Object.keys(reserve).sort()).toEqual([...EFFECT_HANDLE_KEYS].sort());
+    expect(Object.keys(reserve).sort()).toEqual([...BOUNDARY_HANDLE_KEYS].sort());
 
     const p = reserve.propose({ sku: "sku-tea", qty: 3 });
     expect(p.ok).toBe(true);
@@ -71,7 +66,7 @@ describe("generality kill-test — same lifecycle, three domains", () => {
   it("refund stale after external refund → Stale (same ADT)", () => {
     const payments = openPayments();
     payments.seed("pay_2", 20, "CAPTURED");
-    const refund = createRefundEffect(payments);
+    const refund = createRefundBoundary(payments);
 
     const p = refund.propose({ paymentId: "pay_2", amount: 20 });
     if (!p.ok) return;
@@ -89,7 +84,7 @@ describe("generality kill-test — same lifecycle, three domains", () => {
   it("inventory stale after external reserve → Stale", () => {
     const wh = openWarehouse();
     wh.seed("sku-mug", 5);
-    const reserve = createReserveEffect(wh);
+    const reserve = createReserveBoundary(wh);
 
     const p = reserve.propose({ sku: "sku-mug", qty: 2 });
     if (!p.ok) return;
@@ -107,7 +102,7 @@ describe("generality kill-test — same lifecycle, three domains", () => {
   it("refund already REFUNDED is Denied at prepare (policy), not a new verb", () => {
     const payments = openPayments();
     payments.seed("pay_3", 10, "REFUNDED");
-    const refund = createRefundEffect(payments);
+    const refund = createRefundBoundary(payments);
 
     const p = refund.propose({ paymentId: "pay_3", amount: 10 });
     if (!p.ok) return;

@@ -1,5 +1,5 @@
 /**
- * Algebra D — minimal EffectSpec:
+ * Algebra D — minimal BoundarySpec:
  *
  *   observe(I) → Observation<S, W>
  *   check(I, S) → Result<void, DeniedReasons>
@@ -8,7 +8,7 @@
  * S = what you need to decide
  * W = what you need to prove at conditional write
  *
- * Freshness + sealed Executable live in the runtime, not in EffectSpec.
+ * Freshness + sealed Executable live in the runtime, not in BoundarySpec.
  * parse stays as DX for propose(), outside the algebra.
  */
 
@@ -71,7 +71,7 @@ export type Observation<S, W> = {
 /**
  * Public algebra — no schema, no policies[], no hash helper.
  */
-export type EffectSpec<I, S, W> = {
+export type BoundarySpec<I, S, W> = {
   readonly observe: (
     input: I,
   ) => Result<Observation<S, W>, ObserveError>;
@@ -119,7 +119,7 @@ export function witnessEq(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Compose pure checks outside the algebra (not part of EffectSpec).
+ * Compose pure checks outside the algebra (not part of BoundarySpec).
  */
 export function all<I, S>(
   ...checks: ReadonlyArray<(input: I, state: S) => Result<void, DeniedReasons>>
@@ -141,39 +141,48 @@ export type CommitFailure<I> =
   | { readonly tag: "Spent"; readonly reason: string }
   | { readonly tag: "Write"; readonly error: WriteFailure };
 
-export type EffectHandle<I, S, W = unknown> = {
+/**
+ * Public app-facing surface. Provenance claim under T1:
+ * Executable originates only from prepare → observe → check → seal.
+ * `evaluate` is NOT here — caller-controlled Observation would mean
+ * Rupu-issued ≠ Rupu-observed.
+ */
+export type BoundaryHandle<I, S, W = unknown> = {
   readonly propose: (raw: unknown) => Result<Proposal<I>, ParseFailure>;
   readonly prepare: (
     proposal: Proposal<I>,
   ) => Result<Executable, Denied<I> | Unknown<I>>;
   readonly commit: (executable: Executable) => Result<Committed<I>, CommitFailure<I>>;
-  /** Pure authorize given an already-observed slice (tests / advanced). */
+};
+
+/** Test / harness only — mint from a caller-supplied Observation. */
+export type BoundaryTestHandle<I, S, W = unknown> = BoundaryHandle<I, S, W> & {
   readonly evaluate: (
     proposal: Proposal<I>,
     observation: Observation<S, W>,
   ) => Result<Executable, Denied<I>>;
 };
 
-export const EFFECT_HANDLE_KEYS = Object.freeze([
+export const BOUNDARY_HANDLE_KEYS = Object.freeze([
   "propose",
   "prepare",
   "commit",
-  "evaluate",
 ] as const);
 
-export type CreateEffectInput<I, S, W> = {
+export type CreateBoundaryInput<I, S, W> = {
   /** DX only — not part of the algebra. */
   readonly parse: (raw: unknown) => Result<I, ParseFailure>;
-  readonly spec: EffectSpec<I, S, W>;
+  readonly spec: BoundarySpec<I, S, W>;
 };
 
-/**
- * Facade: propose → prepare → commit.
- * Algebra inside: Observe → Decide(S) → Execute(W).
- */
-export function createEffect<I, S, W>(
-  input: CreateEffectInput<I, S, W>,
-): EffectHandle<I, S, W> {
+type BuildOptions = {
+  readonly exposeEvaluate?: boolean;
+};
+
+function buildBoundary<I, S, W>(
+  input: CreateBoundaryInput<I, S, W>,
+  options: BuildOptions,
+): BoundaryHandle<I, S, W> | BoundaryTestHandle<I, S, W> {
   const { parse, spec } = input;
   const write = spec.write;
 
@@ -289,10 +298,41 @@ export function createEffect<I, S, W>(
     return ok(Object.freeze({ tag: "Committed", intent }));
   };
 
+  if (options.exposeEvaluate) {
+    return Object.freeze({
+      propose,
+      prepare,
+      commit,
+      evaluate,
+    });
+  }
+
   return Object.freeze({
     propose,
     prepare,
     commit,
-    evaluate,
   });
+}
+
+/**
+ * Facade: propose → prepare → commit.
+ * Algebra inside: Observe → Decide(S) → Execute(W).
+ * BoundarySpec unchanged. No public evaluate (strong provenance under T1).
+ */
+export function createBoundary<I, S, W>(
+  input: CreateBoundaryInput<I, S, W>,
+): BoundaryHandle<I, S, W> {
+  return buildBoundary(input, { exposeEvaluate: false }) as BoundaryHandle<I, S, W>;
+}
+
+/**
+ * Test / harness only. Same as createBoundary but exposes `evaluate`
+ * (caller-controlled Observation → seal). Do not wire into app Activities.
+ */
+export function createBoundaryForTests<I, S, W>(
+  input: CreateBoundaryInput<I, S, W>,
+): BoundaryTestHandle<I, S, W> {
+  return buildBoundary(input, {
+    exposeEvaluate: true,
+  }) as BoundaryTestHandle<I, S, W>;
 }

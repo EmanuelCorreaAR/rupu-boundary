@@ -1,10 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   openBank,
-  createTransferEffect,
-  resetVault,
-  liveExecutableCount,
-} from "../src/index.js";
+  createTransferBoundary,
+} from "../src/effect.js";
+import { resetVault, liveExecutableCount } from "../src/testing.js";
 
 describe("happy path (~20 lines)", () => {
   beforeEach(() => resetVault());
@@ -14,7 +13,7 @@ describe("happy path (~20 lines)", () => {
     bank.seed("alice", 100);
     bank.seed("bob", 0);
 
-    const transfer = createTransferEffect({
+    const transfer = createTransferBoundary({
       read: bank.read,
       write: bank.takeWritePort(),
     });
