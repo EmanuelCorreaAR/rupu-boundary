@@ -2,7 +2,7 @@
 
 **Rupu Boundary**
 
-A small TypeScript runtime boundary between decisions and real-world effects.
+Una frontera runtime pequeña en TypeScript entre decisiones y efectos del mundo real.
 
 **Probabilistic decisions. Deterministic effects.**
 
@@ -26,10 +26,10 @@ const executable = refund.prepare(proposal);
 const result = refund.commit(executable);
 ```
 
-## Lifecycle
+## Ciclo de vida
 
 ```text
-probabilistic decision
+decisión probabilística
         │
         ▼
 ┌─────────────────────┐
@@ -42,38 +42,38 @@ probabilistic decision
 └──────────┬──────────┘
            │
            ▼
- deterministic effect
+ efecto determinista
 ```
 
 ```text
 prepare:  observe · check · seal(I, W)
-commit:   re-observe · compare W · Stale | conditional write
+commit:   re-observe · compare W · Stale | write condicional
 ```
 
-## Runtime guarantees (under T1)
+## Garantías del runtime (bajo T1)
 
-Composition root seals the write client into `spec.write`. Application code holds only `BoundaryHandle` (and later an `Executable`).
+El composition root sella el cliente de escritura dentro de `spec.write`. El código de aplicación solo recibe un `BoundaryHandle` (y después un `Executable`).
 
 | | |
 |---|---|
-| Opaque `Executable` | caller cannot read/set `I`/`W` |
-| Single-use | replay → spent |
-| Sealed at prepare | `I`/`W` bound together |
-| No public `evaluate` | authority only from observe→check→seal |
-| Explicit `Stale` / `Unknown` / `Denied` | |
+| `Executable` opaco | el caller no lee ni setea `I`/`W` |
+| Un solo uso | replay → spent |
+| Sellado en prepare | `I`/`W` van juntos |
+| Sin `evaluate` público | la autoridad solo nace de observe→check→seal |
+| `Stale` / `Unknown` / `Denied` explícitos | |
 
-## Not guaranteed (by design)
+## No garantizado (a propósito)
 
-- Cross-system TOCTOU  
-- Incomplete witness / Coverage holes (adapter obligation)  
-- Durability across processes (host / workflow)  
-- Idempotency (backend)  
-- Distributed atomicity  
-- Safety if write credentials are ambient (T1 violated)  
+- TOCTOU entre sistemas  
+- Witness incompleto / agujeros de Coverage (obligación del adapter)  
+- Durabilidad entre procesos (host / workflow)  
+- Idempotencia (backend)  
+- Atomicidad distribuida  
+- Seguridad si las credenciales de write están ambient (T1 violado)  
 
-## Install / status
+## Install / estado
 
-**0.1.0 experimental.** Algebra frozen: `BoundarySpec<I,S,W>` (`S` decide, `W` execute).
+**0.1.0 experimental.** Álgebra congelada: `BoundarySpec<I,S,W>` (`S` decide, `W` ejecuta).
 
 ```bash
 npm install
@@ -84,4 +84,8 @@ npm run build
 
 ## Research stop
 
-No more papers to justify this package. A new abstraction lands only if a real case cannot be expressed without breaking the guarantees above.
+No más papers para justificar el paquete. Una abstracción nueva entra solo si un caso real no se puede expresar sin romper las garantías de arriba.
+
+## Cafecito
+
+Si Rupu Boundary te sirve, podés invitarme un cafecito: [cafecito.app/emacorreadev](https://cafecito.app/emacorreadev)

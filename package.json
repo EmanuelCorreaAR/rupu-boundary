@@ -36,6 +36,14 @@
   "engines": {
     "node": ">=18"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EmanuelCorreaAR/rupu-boundary.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EmanuelCorreaAR/rupu-boundary/issues"
+  },
+  "homepage": "https://github.com/EmanuelCorreaAR/rupu-boundary#readme",
   "keywords": [
     "boundary",
     "occ",
