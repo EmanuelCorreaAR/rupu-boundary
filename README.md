@@ -7,7 +7,7 @@ Exploración técnica: ¿puede la corrección de efectos de dominio sentirse com
 - Núcleo FP: `observe` / `check` puros; write solo con witness.
 - I/O en el borde: `observe` + `write(W)` (CAS).
 - Capability `Executable` de un solo uso (vault).
-- **Álgebra D:** `Observation<S,W>` — S decide, W ejecuta.
+- **Álgebra v0 congelada:** `EffectSpec<I,S,W>` — S decide, W ejecuta (S/W irreducibles).
 - Write port sellado; sin adapters de framework.
 
 ```bash

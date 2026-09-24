@@ -99,8 +99,13 @@ Happy path stays short. Failures are tagged (`Denied` | `Stale` | `Unknown` | `S
 
 See [GENERALITY.md](./GENERALITY.md) — transfer / refund / reserve: **Pass**.
 
-## Algebra D
+## Algebra D → v0 freeze
 
-See [ALGEBRA.md](./ALGEBRA.md) — `Observation<S,W>` + `check` + `write(I,W)`: **Pass**.
+See [ALGEBRA.md](./ALGEBRA.md).
 
-Next reduction (optional): attempt to eliminate S or W.
+- `Observation<S,W>` + `check(S)` + `write(W)`: **Pass** (behavior)
+- Kill eliminate **S**: **FAIL** (semantic displacement)
+- Kill eliminate **W**: **FAIL** (semantic displacement)
+- `EffectSpec<I,S,W>` **frozen v0**
+
+Next (later): formal property claim — not more domains / not Mastra.
