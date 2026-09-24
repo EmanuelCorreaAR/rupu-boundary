@@ -1,24 +1,29 @@
 /**
- * Refund fixture — same runtime, different schema/observe/invariants/write.
+ * Refund fixture — algebra D: Observation<S,W> + check + write(W).
  */
 
 import { err, ok, type Result } from "../result.js";
 import {
+  all,
   createEffect,
+  type DeniedReasons,
   type EffectHandle,
   type ParseFailure,
-  type Policy,
+  type PolicyFailure,
   type WriteFailure,
 } from "../runtime.js";
 
 export type PaymentId = string;
-
 export type PaymentStatus = "CAPTURED" | "REFUNDED" | "VOID";
 
-export type PaymentSnapshot = {
+export type PaymentState = {
   readonly id: PaymentId;
   readonly status: PaymentStatus;
   readonly amount: number;
+  readonly version: number;
+};
+
+export type RefundWitness = {
   readonly version: number;
 };
 
@@ -34,7 +39,7 @@ type MutablePayment = {
 };
 
 export type PaymentsWorld = {
-  readonly observe: (id: PaymentId) => PaymentSnapshot | null;
+  readonly observe: (id: PaymentId) => PaymentState | null;
   readonly takeWritePort: () => {
     refundOnce: (
       intent: RefundIntent,
@@ -42,7 +47,6 @@ export type PaymentsWorld = {
     ) => Result<void, WriteFailure>;
   };
   readonly seed: (id: PaymentId, amount: number, status?: PaymentStatus) => void;
-  /** External actor for stale tests. */
   readonly externalRefund: (
     intent: RefundIntent,
     expectedVersion: number,
@@ -53,7 +57,7 @@ export function openPayments(): PaymentsWorld {
   const store = new Map<PaymentId, MutablePayment>();
   let writeTaken = false;
 
-  const observe = (id: PaymentId): PaymentSnapshot | null => {
+  const observe = (id: PaymentId): PaymentState | null => {
     const p = store.get(id);
     if (!p) return null;
     return Object.freeze({
@@ -98,28 +102,33 @@ export function openPayments(): PaymentsWorld {
   };
 }
 
-const capturedOnly: Policy<RefundIntent, PaymentSnapshot> = (intent, snap) => {
-  if (snap.status === "CAPTURED") return { pass: true };
-  return {
-    pass: false,
-    failure: {
-      policy: "capturedOnly",
-      condition: 'status == "CAPTURED"',
-      actual: `status=${snap.status}`,
-    },
-  };
+function fail(
+  policy: string,
+  condition: string,
+  actual: string,
+): Result<void, DeniedReasons> {
+  const f: PolicyFailure = { policy, condition, actual };
+  return err(Object.freeze([f]) as DeniedReasons);
+}
+
+const capturedOnly = (
+  _intent: RefundIntent,
+  state: PaymentState,
+): Result<void, DeniedReasons> => {
+  if (state.status === "CAPTURED") return ok(undefined);
+  return fail("capturedOnly", 'status == "CAPTURED"', `status=${state.status}`);
 };
 
-const fullAmountOnly: Policy<RefundIntent, PaymentSnapshot> = (intent, snap) => {
-  if (intent.amount === snap.amount) return { pass: true };
-  return {
-    pass: false,
-    failure: {
-      policy: "fullAmountOnly",
-      condition: `amount == ${snap.amount}`,
-      actual: `amount=${intent.amount}`,
-    },
-  };
+const fullAmountOnly = (
+  intent: RefundIntent,
+  state: PaymentState,
+): Result<void, DeniedReasons> => {
+  if (intent.amount === state.amount) return ok(undefined);
+  return fail(
+    "fullAmountOnly",
+    `amount == ${state.amount}`,
+    `amount=${intent.amount}`,
+  );
 };
 
 function parseRefund(raw: unknown): Result<RefundIntent, ParseFailure> {
@@ -138,15 +147,21 @@ function parseRefund(raw: unknown): Result<RefundIntent, ParseFailure> {
   return ok(Object.freeze({ paymentId, amount }));
 }
 
-export type RefundEffect = EffectHandle<RefundIntent, PaymentSnapshot>;
+export type RefundEffect = EffectHandle<RefundIntent, PaymentState, RefundWitness>;
 
 export function createRefundEffect(world: PaymentsWorld): RefundEffect {
   const write = world.takeWritePort();
-  return createEffect<RefundIntent, PaymentSnapshot>({
+  return createEffect({
     parse: parseRefund,
-    observe: (intent) => world.observe(intent.paymentId),
-    hash: (snap) => `v${snap.version}:s${snap.status}:a${snap.amount}`,
-    policies: [capturedOnly, fullAmountOnly],
-    write: (intent, snap) => write.refundOnce(intent, snap.version),
+    spec: {
+      observe: (intent) => {
+        const state = world.observe(intent.paymentId);
+        if (!state) return err({ code: "not_found" });
+        const witness: RefundWitness = Object.freeze({ version: state.version });
+        return ok(Object.freeze({ state, witness }));
+      },
+      check: all(capturedOnly, fullAmountOnly),
+      write: (intent, witness) => write.refundOnce(intent, witness.version),
+    },
   });
 }

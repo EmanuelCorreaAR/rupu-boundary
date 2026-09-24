@@ -113,11 +113,10 @@ describe("adversarial battery", () => {
     const from = bank.read.observe("alice")!;
     const to = bank.read.observe("bob")!;
 
-    const decision = transfer.evaluate(
-      p.value,
-      Object.freeze({ from, to }),
-      "2026-09-23T00:00:00Z",
-    );
+    const decision = transfer.evaluate(p.value, {
+      state: Object.freeze({ from, to }),
+      witness: Object.freeze({ fromVersion: from.version }),
+    });
     expect(decision.ok).toBe(true);
     if (!decision.ok) return;
 
@@ -223,7 +222,10 @@ describe("purity boundaries", () => {
     const to = bank.read.observe("bob")!;
     const before = bank.stats().successfulTransfers;
 
-    transfer.evaluate(p.value, Object.freeze({ from, to }), "t0");
+    transfer.evaluate(p.value, {
+      state: Object.freeze({ from, to }),
+      witness: Object.freeze({ fromVersion: from.version }),
+    });
 
     expect(bank.stats().successfulTransfers).toBe(before);
     expect(bank.stats().transferAttempts).toBe(0);

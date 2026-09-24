@@ -4,16 +4,15 @@ Exploración técnica: ¿puede la corrección de efectos de dominio sentirse com
 
 **Probabilistic decisions. Deterministic effects.**
 
-- Núcleo FP: `propose` / `evaluate` / policies son puros (Data → Data).
-- I/O sólo en el borde: `observe` + `commit` (CAS).
-- Capability `Executable` de un solo uso (vault runtime).
-- **Write port sellado:** `takeWritePort()` → runtime; la app no recibe la operación de efecto.
-- **Runtime genérico** `createEffect<I,S>` — transfer / refund / reserve comparten lifecycle.
-- Sin adapters de framework todavía.
+- Núcleo FP: `observe` / `check` puros; write solo con witness.
+- I/O en el borde: `observe` + `write(W)` (CAS).
+- Capability `Executable` de un solo uso (vault).
+- **Álgebra D:** `Observation<S,W>` — S decide, W ejecuta.
+- Write port sellado; sin adapters de framework.
 
 ```bash
 npm install
 npm test
 ```
 
-Ver [NOTES.md](./NOTES.md) (batería sealed) y [GENERALITY.md](./GENERALITY.md) (transfer / refund / reserve).
+Ver [NOTES.md](./NOTES.md), [GENERALITY.md](./GENERALITY.md), [ALGEBRA.md](./ALGEBRA.md).

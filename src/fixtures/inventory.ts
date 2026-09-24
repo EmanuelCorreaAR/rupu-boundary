@@ -1,21 +1,26 @@
 /**
- * Inventory reservation fixture — same runtime lifecycle.
+ * Inventory reservation — algebra D.
  */
 
 import { err, ok, type Result } from "../result.js";
 import {
   createEffect,
+  type DeniedReasons,
   type EffectHandle,
   type ParseFailure,
-  type Policy,
+  type PolicyFailure,
   type WriteFailure,
 } from "../runtime.js";
 
 export type Sku = string;
 
-export type StockSnapshot = {
+export type StockState = {
   readonly sku: Sku;
   readonly available: number;
+  readonly version: number;
+};
+
+export type ReserveWitness = {
   readonly version: number;
 };
 
@@ -30,7 +35,7 @@ type MutableStock = {
 };
 
 export type WarehouseWorld = {
-  readonly observe: (sku: Sku) => StockSnapshot | null;
+  readonly observe: (sku: Sku) => StockState | null;
   readonly takeWritePort: () => {
     reserveCAS: (
       intent: ReserveIntent,
@@ -48,7 +53,7 @@ export function openWarehouse(): WarehouseWorld {
   const store = new Map<Sku, MutableStock>();
   let writeTaken = false;
 
-  const observe = (sku: Sku): StockSnapshot | null => {
+  const observe = (sku: Sku): StockState | null => {
     const s = store.get(sku);
     if (!s) return null;
     return Object.freeze({
@@ -89,17 +94,18 @@ export function openWarehouse(): WarehouseWorld {
   };
 }
 
-const enoughStock: Policy<ReserveIntent, StockSnapshot> = (intent, snap) => {
-  if (snap.available >= intent.qty) return { pass: true };
-  return {
-    pass: false,
-    failure: {
-      policy: "enoughStock",
-      condition: `available >= ${intent.qty}`,
-      actual: `available=${snap.available}`,
-    },
+function enoughStock(
+  intent: ReserveIntent,
+  state: StockState,
+): Result<void, DeniedReasons> {
+  if (state.available >= intent.qty) return ok(undefined);
+  const f: PolicyFailure = {
+    policy: "enoughStock",
+    condition: `available >= ${intent.qty}`,
+    actual: `available=${state.available}`,
   };
-};
+  return err(Object.freeze([f]) as DeniedReasons);
+}
 
 function parseReserve(raw: unknown): Result<ReserveIntent, ParseFailure> {
   if (raw === null || typeof raw !== "object") {
@@ -117,15 +123,21 @@ function parseReserve(raw: unknown): Result<ReserveIntent, ParseFailure> {
   return ok(Object.freeze({ sku, qty }));
 }
 
-export type ReserveEffect = EffectHandle<ReserveIntent, StockSnapshot>;
+export type ReserveEffect = EffectHandle<ReserveIntent, StockState, ReserveWitness>;
 
 export function createReserveEffect(world: WarehouseWorld): ReserveEffect {
   const write = world.takeWritePort();
-  return createEffect<ReserveIntent, StockSnapshot>({
+  return createEffect({
     parse: parseReserve,
-    observe: (intent) => world.observe(intent.sku),
-    hash: (snap) => `v${snap.version}:a${snap.available}`,
-    policies: [enoughStock],
-    write: (intent, snap) => write.reserveCAS(intent, snap.version),
+    spec: {
+      observe: (intent) => {
+        const state = world.observe(intent.sku);
+        if (!state) return err({ code: "not_found" });
+        const witness: ReserveWitness = Object.freeze({ version: state.version });
+        return ok(Object.freeze({ state, witness }));
+      },
+      check: enoughStock,
+      write: (intent, witness) => write.reserveCAS(intent, witness.version),
+    },
   });
 }

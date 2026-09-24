@@ -1,8 +1,15 @@
 /**
- * Generic effect runtime — domain-agnostic propose → prepare → commit.
+ * Algebra D — minimal EffectSpec:
  *
- * I = intent (parsed agent output)
- * S = snapshot (observed world slice)
+ *   observe(I) → Observation<S, W>
+ *   check(I, S) → Result<void, DeniedReasons>
+ *   write(I, W) → Result<void, WriteFailure>
+ *
+ * S = what you need to decide
+ * W = what you need to prove at conditional write
+ *
+ * Freshness + sealed Executable live in the runtime, not in EffectSpec.
+ * parse stays as DX for propose(), outside the algebra.
  */
 
 import { err, ok, type Result } from "./result.js";
@@ -13,11 +20,7 @@ export type PolicyFailure = {
   readonly actual: string;
 };
 
-export type PolicyVerdict =
-  | { readonly pass: true }
-  | { readonly pass: false; readonly failure: PolicyFailure };
-
-export type Policy<I, S> = (intent: I, snapshot: S) => PolicyVerdict;
+export type DeniedReasons = readonly PolicyFailure[];
 
 export type ParseFailure = { readonly code: "invalid_shape"; readonly detail: string };
 
@@ -30,14 +33,13 @@ export type Proposal<I> = {
 export type Denied<I> = {
   readonly tag: "Denied";
   readonly intent: I;
-  readonly failed: readonly PolicyFailure[];
+  readonly failed: DeniedReasons;
 };
 
 export type Stale<I> = {
   readonly tag: "Stale";
   readonly intent: I;
   readonly reason: string;
-  readonly evidenceHash: string;
 };
 
 export type Unknown<I> = {
@@ -49,7 +51,6 @@ export type Unknown<I> = {
 export type Committed<I> = {
   readonly tag: "Committed";
   readonly intent: I;
-  readonly evidenceHash: string;
 };
 
 export type Executable = {
@@ -59,42 +60,49 @@ export type Executable = {
 
 export type WriteFailure = { readonly code: string; readonly detail?: string };
 
-export type EffectSpec<I, S> = {
-  readonly parse: (raw: unknown) => Result<I, ParseFailure>;
-  /** Read edge: intent → current world slice (or null if missing). */
-  readonly observe: (intent: I) => S | null;
-  /** Pure fingerprint of the observed slice (includes versions). */
-  readonly hash: (snapshot: S) => string;
-  readonly policies: readonly Policy<I, S>[];
-  /**
-   * Write edge: must be CAS/conditional on versions carried in `snapshot`.
-   * Captured privately by createEffect — never returned on the handle.
-   */
-  readonly write: (intent: I, snapshot: S) => Result<void, WriteFailure>;
-  readonly clock?: () => string;
+export type ObserveError = { readonly code: string; readonly detail?: string };
+
+/** S = decide; W = execute (CAS / conditional token). */
+export type Observation<S, W> = {
+  readonly state: S;
+  readonly witness: W;
 };
 
-type SealedBody<I> = {
+/**
+ * Public algebra — no schema, no policies[], no hash helper.
+ */
+export type EffectSpec<I, S, W> = {
+  readonly observe: (
+    input: I,
+  ) => Result<Observation<S, W>, ObserveError>;
+  readonly check: (input: I, state: S) => Result<void, DeniedReasons>;
+  /** Conditional write against W only — never against full S. */
+  readonly write: (input: I, witness: W) => Result<void, WriteFailure>;
+};
+
+type SealedBody<I, W> = {
   readonly intent: I;
-  readonly evidenceHash: string;
+  readonly witness: W;
   spent: boolean;
 };
 
-const vault = new Map<symbol, SealedBody<unknown>>();
+const vault = new Map<symbol, SealedBody<unknown, unknown>>();
 
-function seal<I>(intent: I, evidenceHash: string): Executable {
+function seal<I, W>(intent: I, witness: W): Executable {
   const token = Symbol("rupu.executable");
-  vault.set(token, { intent, evidenceHash, spent: false });
+  vault.set(token, { intent, witness, spent: false });
   return Object.freeze({ tag: "Executable", __token: token });
 }
 
-function consume<I>(executable: Executable): Result<SealedBody<I>, string> {
+function consume<I, W>(
+  executable: Executable,
+): Result<SealedBody<I, W>, string> {
   const body = vault.get(executable.__token);
   if (!body) return err("forged_or_unknown_executable");
   if (body.spent) return err("executable_already_spent");
   body.spent = true;
   vault.delete(executable.__token);
-  return ok(body as SealedBody<I>);
+  return ok(body as SealedBody<I, W>);
 }
 
 export function liveExecutableCount(): number {
@@ -105,23 +113,44 @@ export function resetVault(): void {
   vault.clear();
 }
 
+/** Structural equality for frozen witnesses (versions, etags, …). */
+export function witnessEq(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * Compose pure checks outside the algebra (not part of EffectSpec).
+ */
+export function all<I, S>(
+  ...checks: ReadonlyArray<(input: I, state: S) => Result<void, DeniedReasons>>
+): (input: I, state: S) => Result<void, DeniedReasons> {
+  return (input, state) => {
+    const failed: PolicyFailure[] = [];
+    for (const c of checks) {
+      const r = c(input, state);
+      if (!r.ok) failed.push(...r.error);
+    }
+    if (failed.length > 0) return err(Object.freeze(failed) as DeniedReasons);
+    return ok(undefined);
+  };
+}
+
 export type CommitFailure<I> =
   | Stale<I>
   | Unknown<I>
   | { readonly tag: "Spent"; readonly reason: string }
   | { readonly tag: "Write"; readonly error: WriteFailure };
 
-export type EffectHandle<I, S> = {
+export type EffectHandle<I, S, W = unknown> = {
   readonly propose: (raw: unknown) => Result<Proposal<I>, ParseFailure>;
   readonly prepare: (
     proposal: Proposal<I>,
-    clock?: () => string,
   ) => Result<Executable, Denied<I> | Unknown<I>>;
   readonly commit: (executable: Executable) => Result<Committed<I>, CommitFailure<I>>;
+  /** Pure authorize given an already-observed slice (tests / advanced). */
   readonly evaluate: (
     proposal: Proposal<I>,
-    snapshot: S,
-    observedAt: string,
+    observation: Observation<S, W>,
   ) => Result<Executable, Denied<I>>;
 };
 
@@ -132,17 +161,24 @@ export const EFFECT_HANDLE_KEYS = Object.freeze([
   "evaluate",
 ] as const);
 
+export type CreateEffectInput<I, S, W> = {
+  /** DX only — not part of the algebra. */
+  readonly parse: (raw: unknown) => Result<I, ParseFailure>;
+  readonly spec: EffectSpec<I, S, W>;
+};
+
 /**
- * Build an application-facing effect API.
- * The write function is closed over and never placed on the returned object.
+ * Facade: propose → prepare → commit.
+ * Algebra inside: Observe → Decide(S) → Execute(W).
  */
-export function createEffect<I, S>(spec: EffectSpec<I, S>): EffectHandle<I, S> {
+export function createEffect<I, S, W>(
+  input: CreateEffectInput<I, S, W>,
+): EffectHandle<I, S, W> {
+  const { parse, spec } = input;
   const write = spec.write;
-  const policies = spec.policies;
-  const clockDefault = spec.clock ?? (() => new Date().toISOString());
 
   const propose = (raw: unknown): Result<Proposal<I>, ParseFailure> => {
-    const parsed = spec.parse(raw);
+    const parsed = parse(raw);
     if (!parsed.ok) return parsed;
     return ok(
       Object.freeze({
@@ -155,33 +191,27 @@ export function createEffect<I, S>(spec: EffectSpec<I, S>): EffectHandle<I, S> {
 
   const evaluate = (
     proposal: Proposal<I>,
-    snapshot: S,
-    _observedAt: string,
+    observation: Observation<S, W>,
   ): Result<Executable, Denied<I>> => {
-    const failed: PolicyFailure[] = [];
-    for (const policy of policies) {
-      const v = policy(proposal.intent, snapshot);
-      if (!v.pass) failed.push(v.failure);
-    }
-    if (failed.length > 0) {
+    const checked = spec.check(proposal.intent, observation.state);
+    if (!checked.ok) {
       return err(
         Object.freeze({
           tag: "Denied",
           intent: proposal.intent,
-          failed: Object.freeze([...failed]),
+          failed: checked.error,
         }),
       );
     }
-    return ok(seal(proposal.intent, spec.hash(snapshot)));
+    return ok(seal(proposal.intent, observation.witness));
   };
 
   const prepare = (
     proposal: Proposal<I>,
-    clock: () => string = clockDefault,
   ): Result<Executable, Denied<I> | Unknown<I>> => {
-    let snapshot: S | null;
+    let observed: Result<Observation<S, W>, ObserveError>;
     try {
-      snapshot = spec.observe(proposal.intent);
+      observed = spec.observe(proposal.intent);
     } catch (e) {
       return err({
         tag: "Unknown",
@@ -189,28 +219,28 @@ export function createEffect<I, S>(spec: EffectSpec<I, S>): EffectHandle<I, S> {
         reason: e instanceof Error ? e.message : "observe_failed",
       });
     }
-    if (snapshot === null) {
+    if (!observed.ok) {
       return err({
         tag: "Unknown",
         intent: proposal.intent,
-        reason: "snapshot_missing",
+        reason: observed.error.code,
       });
     }
-    return evaluate(proposal, snapshot, clock());
+    return evaluate(proposal, observed.value);
   };
 
   const commit = (
     executable: Executable,
   ): Result<Committed<I>, CommitFailure<I>> => {
-    const sealed = consume<I>(executable);
+    const sealed = consume<I, W>(executable);
     if (!sealed.ok) {
       return err({ tag: "Spent", reason: sealed.error });
     }
-    const { intent, evidenceHash } = sealed.value;
+    const { intent, witness } = sealed.value;
 
-    let snapshot: S | null;
+    let observed: Result<Observation<S, W>, ObserveError>;
     try {
-      snapshot = spec.observe(intent);
+      observed = spec.observe(intent);
     } catch (e) {
       return err({
         tag: "Unknown",
@@ -218,27 +248,25 @@ export function createEffect<I, S>(spec: EffectSpec<I, S>): EffectHandle<I, S> {
         reason: e instanceof Error ? e.message : "observe_failed",
       });
     }
-    if (snapshot === null) {
+    if (!observed.ok) {
       return err({
         tag: "Unknown",
         intent,
-        reason: "snapshot_missing_at_commit",
+        reason: observed.error.code,
       });
     }
 
-    const currentHash = spec.hash(snapshot);
-    if (currentHash !== evidenceHash) {
+    if (!witnessEq(witness, observed.value.witness)) {
       return err({
         tag: "Stale",
         intent,
         reason: "world_changed_since_evidence",
-        evidenceHash,
       });
     }
 
     let written: Result<void, WriteFailure>;
     try {
-      written = write(intent, snapshot);
+      written = write(intent, witness);
     } catch (e) {
       return err({
         tag: "Unknown",
@@ -253,19 +281,12 @@ export function createEffect<I, S>(spec: EffectSpec<I, S>): EffectHandle<I, S> {
           tag: "Stale",
           intent,
           reason: "cas_version_conflict",
-          evidenceHash,
         });
       }
       return err({ tag: "Write", error: written.error });
     }
 
-    return ok(
-      Object.freeze({
-        tag: "Committed",
-        intent,
-        evidenceHash,
-      }),
-    );
+    return ok(Object.freeze({ tag: "Committed", intent }));
   };
 
   return Object.freeze({

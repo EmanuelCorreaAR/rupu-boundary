@@ -5,10 +5,10 @@
 Probabilistic decisions (agent JSON). Deterministic effects (CAS + evidence).
 
 FP constraint:
-- `propose` / `evaluate` / policies = **pure** (Data → Data)
-- `observe` / `commit` = **only** I/O edges
-- `Result` ADT, no exceptions as control flow
-- Write port is **owned by the runtime** via `takeWritePort()` → `createTransferEffect`
+- `observe` / `check` = **pure** (Data → Data); `all()` is external composition
+- `write(I, W)` = only write edge (CAS token = W, not full S)
+- freshness + vault = **runtime**
+- Write port owned via `takeWritePort()` → closed over in `createEffect`
 
 ## API shape (happy path)
 
@@ -97,6 +97,10 @@ Happy path stays short. Failures are tagged (`Denied` | `Stale` | `Unknown` | `S
 
 ## Generality
 
-See [GENERALITY.md](./GENERALITY.md) — transfer / refund / reserve on one `createEffect` runtime: **Pass**.
+See [GENERALITY.md](./GENERALITY.md) — transfer / refund / reserve: **Pass**.
 
-Next (only if productizing): document `EffectSpec` contract; still no Mastra by default.
+## Algebra D
+
+See [ALGEBRA.md](./ALGEBRA.md) — `Observation<S,W>` + `check` + `write(I,W)`: **Pass**.
+
+Next reduction (optional): attempt to eliminate S or W.
