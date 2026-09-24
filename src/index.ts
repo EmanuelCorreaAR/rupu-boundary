@@ -2,8 +2,10 @@
  * rupu-boundary — public API (v0.4 stable)
  *
  * BoundarySpec<I,S,W> + propose → prepare → commit
+ * Production helpers: witnessEq, releaseExecutable (abandoned prepare).
  * Fixtures stay out of the package surface.
  * Adapters: `rupu-boundary/etag` | `/dynamodb` | `/sql`
+ * Harness only: `rupu-boundary/testing`
  */
 
 export { ok, err, matchResult, type Result, type Ok, type Err } from "./result.js";

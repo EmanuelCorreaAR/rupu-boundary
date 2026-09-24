@@ -357,7 +357,21 @@ function buildBoundary<I, S, W>(
       });
     }
 
-    if (!compareWitness(witness, observed.value.witness)) {
+    let fresh: boolean;
+    try {
+      fresh = compareWitness(witness, observed.value.witness);
+    } catch (e) {
+      // Comparator/witnessEq throw (unsupported W leaf, bad compareWitness).
+      // Authority kept — not Spent; caller can fix comparator / W shape.
+      return err({
+        tag: "Unknown",
+        intent,
+        reason:
+          e instanceof Error ? `compare:${e.message}` : "compare_witness_threw",
+      });
+    }
+
+    if (!fresh) {
       // World moved under sealed evidence — this Executable is dead.
       spend(executable);
       return err({

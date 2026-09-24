@@ -2,10 +2,17 @@
 
 ## One-liner
 
-**RupuBoundary** es un **protocolo de capacidad** (`propose → prepare → commit`) que convierte una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
+**RupuBoundary** estandariza cómo una **decisión transporta evidencia** (`W`) hasta un **write port** capaz de hacer valer esa evidencia (`propose → prepare → commit`).
 
-No es un primitivo nuevo de concurrencia. Atomicidad y Coverage siguen siendo obligaciones del adapter / write port (CAS, If-Match, ConditionExpression, `UPDATE … WHERE version`, …).
+No “resuelve freshness” ni inventa concurrencia. El re-observe en `commit` no cierra la carrera TOCTOU; quien la cierra es el write condicional (If-Match / ConditionExpression / `UPDATE … WHERE version`). Coverage (`check` deps ⊆ witness) es obligación del adapter.
 
+## Qué es / qué no es
+
+| Es | No es |
+|---|---|
+| Protocolo de capacidad + evidencia sellada hasta un OCC write | Un nuevo modelo de consistencia |
+| API chica: decisión → Executable single-use → efecto condicional | Un wrapper mágico de ETag/Dynamo/SQL |
+| Freshness **hasta donde el write port permite** | Demostración de que “la decisión sigue válida” sin disciplina del adapter |
 ## Generality (evidencia, no eslogan)
 
 | Evidencia | Estado |
@@ -21,11 +28,11 @@ No es un primitivo nuevo de concurrencia. Atomicidad y Coverage siguen siendo ob
 
 | Export | Symbols |
 |---|---|
-| `rupu-boundary` | `createBoundary`, `BoundarySpec`, `BoundaryHandle`, ADTs, `all`, `witnessEq`, `releaseExecutable`, `Result` helpers |
+| `rupu-boundary` | `createBoundary`, `BoundarySpec`, `BoundaryHandle`, ADTs, `all`, `witnessEq`, **`releaseExecutable`**, `Result` helpers |
 | `rupu-boundary/etag` | `createEtagBoundary` |
 | `rupu-boundary/dynamodb` | `createDynamoBoundary` |
 | `rupu-boundary/sql` | `createSqlBoundary` |
-| `rupu-boundary/testing` | harness only — not for app code |
+| `rupu-boundary/testing` | `createBoundaryForTests`, `resetVault`, `liveExecutableCount` — **harness only**, no app code |
 
 **Lifecycle:** `propose` (sync) → `prepare` (async) → `commit` (async).
 
@@ -49,9 +56,10 @@ Por defecto `witnessEq` compara hojas JSON-like (objetos planos, arrays, escalar
 
 Para W opaco: inyectá `compareWitness` en `BoundarySpec` (no es un verbo del lifecycle).
 
+Si `compareWitness` / `witnessEq` **tiran**, `commit` no rechaza la Promise: devuelve `Unknown` y **no** gasta el `Executable` (reintentable tras corregir W/comparator).
 ## Executable / vault
 
-`Executable` es opaco y de un solo uso **en proceso**. Prepare abandonado (sin `commit`) permanece en el vault hasta `releaseExecutable(exec)` o fin de proceso. Sin durabilidad cross-process.
+`Executable` es opaco y de un solo uso **en proceso**. Prepare abandonado (sin `commit`) permanece en el vault hasta `releaseExecutable(exec)` (export del **paquete principal**, no de `/testing`) o fin de proceso. Sin durabilidad cross-process.
 
 ## Guarantees (T1)
 

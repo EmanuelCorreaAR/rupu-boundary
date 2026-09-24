@@ -1,7 +1,7 @@
 {
   "name": "rupu-boundary",
-  "version": "0.4.0",
-  "description": "Capability protocol (propose→prepare→commit) for deferred authority over OCC write ports — ETag, Dynamo conditional, SQL version.",
+  "version": "0.4.1",
+  "description": "Capability protocol (propose→prepare→commit) that carries sealed evidence to an OCC write port — ETag, Dynamo conditional, SQL version.",
   "type": "module",
   "license": "Apache-2.0",
   "private": false,

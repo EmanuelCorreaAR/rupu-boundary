@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1
+
+### Fix
+
+- **`releaseExecutable` is main-only.** Removed from `rupu-boundary/testing` so production memory ownership is not gated behind the harness export. CONTRACT table lists `/testing` contents explicitly.
+
+### Runtime
+
+- **`commit` totality:** if `compareWitness` / `witnessEq` throw → `Unknown` (authority kept), never a rejected Promise for that class of error.
+
+### Ops / tests
+
+- GitHub Actions CI: typecheck + test + build on **Node 18 / 20 / 22**.
+- Hostile invariants: concurrent commit, TOCTOU vs CAS, blind write limit, write-throws-after-apply, throwing comparator, coverage hole, mass `releaseExecutable`.
+
+### Docs
+
+- Framing: *transport evidence to a write port that can enforce it* — not “we solved freshness”.
+
 ## 0.4.0
 
 ### Core

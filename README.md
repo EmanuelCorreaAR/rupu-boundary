@@ -1,15 +1,12 @@
 # RupuBoundary
 
-**Capability protocol (`propose → prepare → commit`) for deferred authority over OCC write ports — ETag, Dynamo conditional, SQL version.**
+**Capability protocol (`propose → prepare → commit`) that carries sealed evidence to an OCC write port — ETag, Dynamo conditional, SQL version.**
 
 Parte de la familia **Rupu**.
 
-**0.4.0 — API estable (0.x).** Contrato: [CONTRACT.md](./CONTRACT.md).
+**0.4.1 — API estable (0.x).** Contrato: [CONTRACT.md](./CONTRACT.md).
 
-**RupuBoundary** convierte una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
-
-No es un primitivo nuevo de concurrencia: CAS / If-Match / ConditionExpression / `UPDATE … WHERE version` siguen siendo del adapter.
-
+**RupuBoundary** no inventa concurrencia ni “resuelve freshness”. Estandariza cómo una decisión transporta evidencia hasta un write port que pueda hacerla valer. El TOCTOU entre re-observe y write lo cierra CAS / If-Match / ConditionExpression — no el core.
 **Evidencia de generalidad:** el mismo lifecycle aguanta ETag, Dynamo conditional writes y SQL OCC — sin verbos nuevos en el core.
 
 ```text
@@ -99,7 +96,7 @@ npm install && npm test && npm run build
 
 ## Status
 
-**0.4.0** — core estable; adapters `etag` / `dynamodb` / `sql`; `WriteFailure` estructural; `compareWitness` opcional.
+**0.4.1** — core estable; `releaseExecutable` solo en el entrypoint principal; adapters `etag` / `dynamodb` / `sql`.
 
 
 ## Apoyar el proyecto
