@@ -1,4 +1,4 @@
-# Rupu Boundary
+# RupuBoundary
 
 **Probabilistic decisions. Deterministic effects.**
 
@@ -6,7 +6,7 @@ Parte de la familia **Rupu**.
 
 **0.3.0 — API estable (0.x sin breaks del core).** Contrato: [CONTRACT.md](./CONTRACT.md).
 
-Boundary es un **protocolo de capacidad** (`propose → prepare → commit`) para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
+**RupuBoundary** es un **protocolo de capacidad** (`propose → prepare → commit`) para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
 
 No es un primitivo nuevo de concurrencia: CAS / If-Match / ConditionExpression / `UPDATE … WHERE version` siguen siendo del adapter.
 
@@ -75,11 +75,11 @@ commit  = re-observe → compare(W) → Stale | conditional write
 | **W** | witness para **probar al commit** |
 
 
-## Boundary ≠ policy
+## RupuBoundary ≠ policy
 
 ```text
 Policy / authz   →  ¿está permitida la acción?
-Boundary         →  ¿la decisión sigue válida contra el estado actual?
+RupuBoundary     →  ¿la decisión sigue válida contra el estado actual?
 ```
 
 
