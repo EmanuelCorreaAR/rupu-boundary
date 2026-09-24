@@ -7,22 +7,22 @@ import { resetVault, liveExecutableCount } from "../src/testing.js";
 import { err, ok } from "../src/result.js";
 
 describe("A — witnessEq", () => {
-  it("same logical witness, different key order → equal", () => {
+  it("same logical witness, different key order → equal", async () => {
     expect(witnessEq({ version: 1, shard: "A" }, { shard: "A", version: 1 })).toBe(
       true,
     );
   });
 
-  it("does not collapse undefined-property with missing key (unlike JSON.stringify)", () => {
+  it("does not collapse undefined-property with missing key (unlike JSON.stringify)", async () => {
     expect(witnessEq({ x: undefined }, {})).toBe(false);
   });
 
-  it("does not treat NaN as null (unlike JSON.stringify)", () => {
+  it("does not treat NaN as null (unlike JSON.stringify)", async () => {
     expect(witnessEq({ x: NaN }, { x: null })).toBe(false);
     expect(witnessEq({ x: NaN }, { x: NaN })).toBe(true);
   });
 
-  it("BigInt is rejected", () => {
+  it("BigInt is rejected", async () => {
     expect(() => witnessEq({ n: 1n }, { n: 1n })).toThrow(/BigInt/);
   });
 });
@@ -30,7 +30,7 @@ describe("A — witnessEq", () => {
 describe("B — observe failure on commit does not spend authority", () => {
   beforeEach(() => resetVault());
 
-  it("transient observe fail → Unknown → retry can still commit", () => {
+  it("transient observe fail → Unknown → retry can still commit", async () => {
     let observes = 0;
     let writes = 0;
     const world = { version: 1, status: "CAPTURED" as const };
@@ -64,11 +64,11 @@ describe("B — observe failure on commit does not spend authority", () => {
 
     const proposal = boundary.propose({ id: "x" });
     if (!proposal.ok) throw new Error("propose");
-    const prep = boundary.prepare(proposal.value);
+    const prep = await boundary.prepare(proposal.value);
     if (!prep.ok) throw new Error("prepare");
     expect(liveExecutableCount()).toBe(1);
 
-    const first = boundary.commit(prep.value);
+    const first = await boundary.commit(prep.value);
     expect(first.ok).toBe(false);
     if (!first.ok) {
       expect(first.error.tag).toBe("Unknown");
@@ -76,13 +76,13 @@ describe("B — observe failure on commit does not spend authority", () => {
     expect(writes).toBe(0);
     expect(liveExecutableCount()).toBe(1); // still live
 
-    const second = boundary.commit(prep.value);
+    const second = await boundary.commit(prep.value);
     expect(second.ok).toBe(true);
     expect(writes).toBe(1);
     expect(liveExecutableCount()).toBe(0);
   });
 
-  it("Stale still spends the Executable", () => {
+  it("Stale still spends the Executable", async () => {
     let version = 1;
     const boundary = createBoundary({
       parse: (raw: unknown) => ok(Object.freeze(raw as { id: string })),
@@ -101,16 +101,16 @@ describe("B — observe failure on commit does not spend authority", () => {
 
     const proposal = boundary.propose({ id: "x" });
     if (!proposal.ok) throw new Error("propose");
-    const prep = boundary.prepare(proposal.value);
+    const prep = await boundary.prepare(proposal.value);
     if (!prep.ok) throw new Error("prepare");
 
     version = 2;
-    const stale = boundary.commit(prep.value);
+    const stale = await boundary.commit(prep.value);
     expect(stale.ok).toBe(false);
     if (!stale.ok) expect(stale.error.tag).toBe("Stale");
     expect(liveExecutableCount()).toBe(0);
 
-    const again = boundary.commit(prep.value);
+    const again = await boundary.commit(prep.value);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.error.tag).toBe("Spent");
   });
@@ -119,7 +119,7 @@ describe("B — observe failure on commit does not spend authority", () => {
 describe("Proposal is DX — forgeable, parse is not an integrity frontier", () => {
   beforeEach(() => resetVault());
 
-  it("forged Proposal skips parse and can still prepare", () => {
+  it("forged Proposal skips parse and can still prepare", async () => {
     let parsed = 0;
     const boundary = createBoundary({
       parse: () => {
@@ -145,7 +145,7 @@ describe("Proposal is DX — forgeable, parse is not an integrity frontier", () 
       raw: null,
     } as Proposal<{ id: string }>;
 
-    const prep = boundary.prepare(forged);
+    const prep = await boundary.prepare(forged);
     expect(parsed).toBe(0);
     expect(prep.ok).toBe(true);
   });

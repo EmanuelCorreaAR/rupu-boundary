@@ -21,45 +21,45 @@ describe("experiment: authority vs safeRefund-shaped mutations", () => {
     refund = createRefundBoundary(world);
   });
 
-  function prepareOk(): Executable {
+  async function prepareOk(): Promise<Executable> {
     const p = refund.propose({ paymentId: "pay_1", amount: 50 });
     if (!p.ok) throw new Error("propose");
-    const d = refund.prepare(p.value);
+    const d = await refund.prepare(p.value);
     if (!d.ok) throw new Error("prepare");
     return d.value;
   }
 
-  it("provenance: forged Executable cannot commit", () => {
+  it("provenance: forged Executable cannot commit", async () => {
     const forged = {
       tag: "Executable",
       __token: Symbol("forged"),
     } as Executable;
-    expect(refund.commit(forged).ok).toBe(false);
+    expect((await refund.commit(forged)).ok).toBe(false);
   });
 
-  it("consumption: replay after successful commit fails", () => {
-    const exec = prepareOk();
-    expect(refund.commit(exec).ok).toBe(true);
-    const again = refund.commit(exec);
+  it("consumption: replay after successful commit fails", async () => {
+    const exec = await prepareOk();
+    expect((await refund.commit(exec)).ok).toBe(true);
+    const again = await refund.commit(exec);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.error.tag).toBe("Spent");
   });
 
-  it("binding: Executable surface has no writable witness/intent fields", () => {
-    const exec = prepareOk();
+  it("binding: Executable surface has no writable witness/intent fields", async () => {
+    const exec = await prepareOk();
     expect(Object.keys(exec).sort()).toEqual(["__token", "tag"].sort());
     expect(exec).not.toHaveProperty("witness");
     expect(exec).not.toHaveProperty("intent");
   });
 
-  it("app handle: propose/prepare/commit only (no evaluate)", () => {
+  it("app handle: propose/prepare/commit only (no evaluate)", async () => {
     expect(refund).not.toHaveProperty("evaluate");
     expect(Object.keys(refund).sort()).toEqual(
       ["commit", "prepare", "propose"].sort(),
     );
   });
 
-  it("ESCAPE (harness only): evaluate mints Rupu-issued ≠ Rupu-observed", () => {
+  it("ESCAPE (harness only): evaluate mints Rupu-issued ≠ Rupu-observed", async () => {
     const world2 = openPayments();
     world2.seed("pay_1", 50);
     const write = world2.takeWritePort();
@@ -97,7 +97,7 @@ describe("experiment: authority vs safeRefund-shaped mutations", () => {
     });
     expect(minted.ok).toBe(true);
     if (!minted.ok) return;
-    const result = harness.commit(minted.value);
+    const result = await harness.commit(minted.value);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.tag).toBe("Stale");
   });

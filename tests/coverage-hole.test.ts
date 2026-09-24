@@ -28,26 +28,26 @@ describe("coverage hole — false-fresh kill-test", () => {
     refund = createHoleyRefundBoundary(world);
   });
 
-  it("CONTROL: covered field change (statusAmountVersion) → Stale, NO write", () => {
+  it("CONTROL: covered field change (statusAmountVersion) → Stale, NO write", async () => {
     const p = refund.propose({ paymentId: "pay_1", amount: 50 });
     if (!p.ok) throw new Error("propose");
-    const prep = refund.prepare(p.value);
+    const prep = await refund.prepare(p.value);
     if (!prep.ok) throw new Error("prepare");
 
     world.bumpStatusAmountVersion("pay_1");
 
-    const result = refund.commit(prep.value);
+    const result = await refund.commit(prep.value);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.tag).toBe("Stale");
     expect(world.writeAttempts()).toBe(0);
   });
 
-  it("KILL: currency ARS → USD between prepare and commit → Committed (false-fresh)", () => {
+  it("KILL: currency ARS → USD between prepare and commit → Committed (false-fresh)", async () => {
     const p = refund.propose({ paymentId: "pay_1", amount: 50 });
     expect(p.ok).toBe(true);
     if (!p.ok) return;
 
-    const prep = refund.prepare(p.value);
+    const prep = await refund.prepare(p.value);
     expect(prep.ok).toBe(true);
     if (!prep.ok) return;
 
@@ -56,7 +56,7 @@ describe("coverage hole — false-fresh kill-test", () => {
     expect(world.observe("pay_1")?.currency).toBe("USD");
     expect(world.observe("pay_1")?.statusAmountVersion).toBe(1);
 
-    const result = refund.commit(prep.value);
+    const result = await refund.commit(prep.value);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.tag).toBe("Committed");
@@ -64,11 +64,11 @@ describe("coverage hole — false-fresh kill-test", () => {
     expect(world.writeAttempts()).toBe(1);
   });
 
-  it("CONTROL: prepare after currency flip → Denied (check still sees currency)", () => {
+  it("CONTROL: prepare after currency flip → Denied (check still sees currency)", async () => {
     world.setCurrency("pay_1", "USD");
     const p = refund.propose({ paymentId: "pay_1", amount: 50 });
     if (!p.ok) return;
-    const prep = refund.prepare(p.value);
+    const prep = await refund.prepare(p.value);
     expect(prep.ok).toBe(false);
     if (prep.ok) return;
     expect(prep.error.tag).toBe("Denied");

@@ -1,7 +1,7 @@
 {
   "name": "@rupu/boundary",
-  "version": "0.1.0",
-  "description": "Runtime boundary between decisions and real-world effects.",
+  "version": "0.2.0",
+  "description": "Protocol to turn a decision into executable authority conditioned on observable evidence.",
   "type": "module",
   "license": "Apache-2.0",
   "private": false,
@@ -15,12 +15,18 @@
     "./testing": {
       "types": "./dist/src/testing.d.ts",
       "import": "./dist/src/testing.js"
+    },
+    "./etag": {
+      "types": "./dist/src/adapters/etag.d.ts",
+      "import": "./dist/src/adapters/etag.js"
     }
   },
   "files": [
     "dist/src",
     "README.md",
-    "LICENSE"
+    "CHANGELOG.md",
+    "LICENSE",
+    "CONTRACT.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -47,6 +53,7 @@
   "keywords": [
     "boundary",
     "occ",
+    "etag",
     "capabilities",
     "agents",
     "typescript"

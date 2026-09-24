@@ -69,15 +69,20 @@ export type Observation<S, W> = {
 };
 
 /**
- * Public algebra — no schema, no policies[], no hash helper.
+ * Public algebra — observe/write may be sync or async (fetch adapters).
  */
 export type BoundarySpec<I, S, W> = {
   readonly observe: (
     input: I,
-  ) => Result<Observation<S, W>, ObserveError>;
+  ) =>
+    | Result<Observation<S, W>, ObserveError>
+    | Promise<Result<Observation<S, W>, ObserveError>>;
   readonly check: (input: I, state: S) => Result<void, DeniedReasons>;
   /** Conditional write against W only — never against full S. */
-  readonly write: (input: I, witness: W) => Result<void, WriteFailure>;
+  readonly write: (
+    input: I,
+    witness: W,
+  ) => Result<void, WriteFailure> | Promise<Result<void, WriteFailure>>;
 };
 
 type SealedBody<I, W> = {
@@ -183,17 +188,18 @@ export type CommitFailure<I> =
   | { readonly tag: "Write"; readonly error: WriteFailure };
 
 /**
- * Public app-facing surface. Provenance claim under T1:
- * Executable originates only from prepare → observe → check → seal.
- * `evaluate` is NOT here — caller-controlled Observation would mean
- * Rupu-issued ≠ Rupu-observed.
+ * Public app-facing surface (API frozen at 0.2).
+ * prepare/commit are async so adapters may use fetch I/O.
+ * Provenance: Executable only from prepare → observe → check → seal.
  */
 export type BoundaryHandle<I, S, W = unknown> = {
   readonly propose: (raw: unknown) => Result<Proposal<I>, ParseFailure>;
   readonly prepare: (
     proposal: Proposal<I>,
-  ) => Result<Executable, Denied<I> | Unknown<I>>;
-  readonly commit: (executable: Executable) => Result<Committed<I>, CommitFailure<I>>;
+  ) => Promise<Result<Executable, Denied<I> | Unknown<I>>>;
+  readonly commit: (
+    executable: Executable,
+  ) => Promise<Result<Committed<I>, CommitFailure<I>>>;
 };
 
 /** Test / harness only — mint from a caller-supplied Observation. */
@@ -256,12 +262,12 @@ function buildBoundary<I, S, W>(
     return ok(seal(proposal.intent, observation.witness));
   };
 
-  const prepare = (
+  const prepare = async (
     proposal: Proposal<I>,
-  ): Result<Executable, Denied<I> | Unknown<I>> => {
+  ): Promise<Result<Executable, Denied<I> | Unknown<I>>> => {
     let observed: Result<Observation<S, W>, ObserveError>;
     try {
-      observed = spec.observe(proposal.intent);
+      observed = await Promise.resolve(spec.observe(proposal.intent));
     } catch (e) {
       return err({
         tag: "Unknown",
@@ -279,9 +285,9 @@ function buildBoundary<I, S, W>(
     return evaluate(proposal, observed.value);
   };
 
-  const commit = (
+  const commit = async (
     executable: Executable,
-  ): Result<Committed<I>, CommitFailure<I>> => {
+  ): Promise<Result<Committed<I>, CommitFailure<I>>> => {
     const sealed = loadLive<I, W>(executable);
     if (!sealed.ok) {
       return err({ tag: "Spent", reason: sealed.error });
@@ -290,7 +296,7 @@ function buildBoundary<I, S, W>(
 
     let observed: Result<Observation<S, W>, ObserveError>;
     try {
-      observed = spec.observe(intent);
+      observed = await Promise.resolve(spec.observe(intent));
     } catch (e) {
       // Authority kept: observe never reached write — retryable.
       return err({
@@ -325,7 +331,7 @@ function buildBoundary<I, S, W>(
 
     let written: Result<void, WriteFailure>;
     try {
-      written = write(intent, witness);
+      written = await Promise.resolve(write(intent, witness));
     } catch (e) {
       // Spent already — Unknown here may mean write ran or not (adapter).
       return err({

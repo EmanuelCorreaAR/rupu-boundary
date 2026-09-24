@@ -29,20 +29,20 @@ function assertNoKeys<T extends object>(
 }
 
 describe("algebra minimality — S ≠ W (Kill 1 & 2 locks)", () => {
-  it("Kill 1 lock: TransferWitness has no decide-fields (not W := S×W)", () => {
+  it("Kill 1 lock: TransferWitness has no decide-fields (not W := S×W)", async () => {
     const w: TransferWitness = { fromVersion: 1 };
     assertNoKeys(w, ["fromBalance", "balance", "fromActive", "toActive", "from", "to"], "TransferWitness");
     expect(Object.keys(w)).toEqual(["fromVersion"]);
   });
 
-  it("Kill 1 lock: RefundWitness / ReserveWitness are version-only", () => {
+  it("Kill 1 lock: RefundWitness / ReserveWitness are version-only", async () => {
     const rw: RefundWitness = { version: 1 };
     const sw: ReserveWitness = { version: 1 };
     assertNoKeys(rw, ["status", "amount", "id"], "RefundWitness");
     assertNoKeys(sw, ["available", "sku", "qty"], "ReserveWitness");
   });
 
-  it("Kill 2 lock: decide-state types are not required to expose version to check", () => {
+  it("Kill 2 lock: decide-state types are not required to expose version to check", async () => {
     // Document the split: version lives on snapshots for hashing/CAS provenance,
     // but W is the only token passed to write. If someone "eliminates W" by
     // stuffing version into the decide surface alone, these witnesses would
@@ -55,7 +55,7 @@ describe("algebra minimality — S ≠ W (Kill 1 & 2 locks)", () => {
     expect(reserveW).toBe("version");
   });
 
-  it("S carries decide knowledge; W is not a full state clone", () => {
+  it("S carries decide knowledge; W is not a full state clone", async () => {
     const state: TransferState = {
       from: { id: "a", balance: 100, active: true, version: 1 },
       to: { id: "b", balance: 0, active: true, version: 1 },
@@ -67,7 +67,7 @@ describe("algebra minimality — S ≠ W (Kill 1 & 2 locks)", () => {
     expect(witness.fromVersion).toBe(1);
   });
 
-  it("Refund/Reserve: status|available live in S, not in W", () => {
+  it("Refund/Reserve: status|available live in S, not in W", async () => {
     const payment: PaymentState = {
       id: "p",
       status: "CAPTURED",

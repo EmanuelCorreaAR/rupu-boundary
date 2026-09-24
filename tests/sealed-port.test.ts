@@ -11,28 +11,28 @@ import { resetVault } from "../src/testing.js";
  * Simulated application module: only receives the effect handle (+ optional read).
  * It must not be able to reach a write-capable operation.
  */
-function runAppAgent(
+async function runAppAgent(
   transfer: TransferBoundary,
   agentOutput: unknown,
-): { ok: boolean; aliceBalance?: number; read?: { observe: (id: string) => unknown } } {
+): Promise<{ ok: boolean; aliceBalance?: number; read?: { observe: (id: string) => unknown } }> {
   const proposal = transfer.propose(agentOutput);
   if (!proposal.ok) return { ok: false };
-  const decision = transfer.prepare(proposal.value);
+  const decision = await transfer.prepare(proposal.value);
   if (!decision.ok) return { ok: false };
-  const result = transfer.commit(decision.value);
+  const result = await transfer.commit(decision.value);
   return { ok: result.ok };
 }
 
 describe("sealed write port", () => {
   beforeEach(() => resetVault());
 
-  it("15. write port is taken once; second take throws", () => {
+  it("15. write port is taken once; second take throws", async () => {
     const bank = openBank();
     bank.takeWritePort();
     expect(() => bank.takeWritePort()).toThrow(/write_port_already_taken/);
   });
 
-  it("16. effect handle exposes only propose/prepare/commit (no evaluate)", () => {
+  it("16. effect handle exposes only propose/prepare/commit (no evaluate)", async () => {
     const bank = openBank();
     const transfer = createTransferBoundary({
       read: bank.read,
@@ -52,7 +52,7 @@ describe("sealed write port", () => {
     }
   });
 
-  it("17. app callback with only TransferBoundary cannot debit except via commit", () => {
+  it("17. app callback with only TransferBoundary cannot debit except via commit", async () => {
     const bank = openBank();
     bank.seed("alice", 100);
     bank.seed("bob", 0);
@@ -63,7 +63,7 @@ describe("sealed write port", () => {
     });
 
     // Composition root keeps read for assertions; app only gets `transfer`.
-    const outcome = runAppAgent(transfer, {
+    const outcome = await runAppAgent(transfer, {
       from: "alice",
       to: "bob",
       amount: 30,
@@ -75,7 +75,7 @@ describe("sealed write port", () => {
     expect(() => bank.takeWritePort()).toThrow(/write_port_already_taken/);
   });
 
-  it("18. JSON/inspect of effect handle does not leak write port", () => {
+  it("18. JSON/inspect of effect handle does not leak write port", async () => {
     const bank = openBank();
     const transfer = createTransferBoundary({
       read: bank.read,

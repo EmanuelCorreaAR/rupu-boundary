@@ -33,17 +33,17 @@ describe("hostile consumer — refund adapter", () => {
     refund = createRefundBoundary(world);
   });
 
-  function prepareOk(raw = { paymentId: "pay_1", amount: 50 }): Executable {
+  async function prepareOk(raw = { paymentId: "pay_1", amount: 50 }): Promise<Executable> {
     const p = refund.propose(raw);
     if (!p.ok) throw new Error("propose");
-    const d = refund.prepare(p.value);
+    const d = await refund.prepare(p.value);
     if (!d.ok) throw new Error(`prepare: ${d.error.tag}`);
     return d.value;
   }
 
-  it("1. prepare → commit: write occurs exactly once", () => {
-    const exec = prepareOk();
-    const result = refund.commit(exec);
+  it("1. prepare → commit: write occurs exactly once", async () => {
+    const exec = await prepareOk();
+    const result = await refund.commit(exec);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.tag).toBe("Committed");
@@ -52,8 +52,8 @@ describe("hostile consumer — refund adapter", () => {
     expect(world.observe("pay_1")?.status).toBe("REFUNDED");
   });
 
-  it("2. prepare → external change → commit: Stale and NO write (raison d'être)", () => {
-    const exec = prepareOk();
+  it("2. prepare → external change → commit: Stale and NO write (raison d'être)", async () => {
+    const exec = await prepareOk();
 
     // World moves under the sealed witness (external actor, not the app).
     const external = world.externalRefund(
@@ -64,7 +64,7 @@ describe("hostile consumer — refund adapter", () => {
     expect(world.successfulRefunds()).toBe(1);
     const attemptsBefore = world.writeAttempts();
 
-    const result = refund.commit(exec);
+    const result = await refund.commit(exec);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.tag).toBe("Stale");
@@ -72,33 +72,33 @@ describe("hostile consumer — refund adapter", () => {
     expect(world.writeAttempts()).toBe(attemptsBefore);
   });
 
-  it("3. commit(executable) twice: second is Spent", () => {
-    const exec = prepareOk();
-    expect(refund.commit(exec).ok).toBe(true);
-    const again = refund.commit(exec);
+  it("3. commit(executable) twice: second is Spent", async () => {
+    const exec = await prepareOk();
+    expect((await refund.commit(exec)).ok).toBe(true);
+    const again = await refund.commit(exec);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.error.tag).toBe("Spent");
     expect(world.successfulRefunds()).toBe(1);
     expect(world.writeAttempts()).toBe(1);
   });
 
-  it("4. check rejects: Denied — no write authority is minted", () => {
+  it("4. check rejects: Denied — no write authority is minted", async () => {
     world.seed("pay_denied", 10, "REFUNDED");
     const p = refund.propose({ paymentId: "pay_denied", amount: 10 });
     expect(p.ok).toBe(true);
     if (!p.ok) return;
-    const d = refund.prepare(p.value);
+    const d = await refund.prepare(p.value);
     expect(d.ok).toBe(false);
     if (d.ok) return;
     expect(d.error.tag).toBe("Denied");
     expect(world.writeAttempts()).toBe(0);
   });
 
-  it("5. observe fails: Unknown — NO write", () => {
+  it("5. observe fails: Unknown — NO write", async () => {
     const p = refund.propose({ paymentId: "missing", amount: 1 });
     expect(p.ok).toBe(true);
     if (!p.ok) return;
-    const d = refund.prepare(p.value);
+    const d = await refund.prepare(p.value);
     expect(d.ok).toBe(false);
     if (d.ok) return;
     expect(d.error.tag).toBe("Unknown");
@@ -106,35 +106,35 @@ describe("hostile consumer — refund adapter", () => {
   });
 
   describe("API misuse", () => {
-    it("Executable exposes no I / W fields", () => {
-      const exec = prepareOk();
+    it("Executable exposes no I / W fields", async () => {
+      const exec = await prepareOk();
       expect(Object.keys(exec).sort()).toEqual(["__token", "tag"].sort());
       expect(exec).not.toHaveProperty("intent");
       expect(exec).not.toHaveProperty("witness");
       expect(exec).not.toHaveProperty("state");
     });
 
-    it("forged Executable cannot commit", () => {
+    it("forged Executable cannot commit", async () => {
       const forged = {
         tag: "Executable",
         __token: Symbol("forged"),
       } as Executable;
-      const result = refund.commit(forged);
+      const result = await refund.commit(forged);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.tag).toBe("Spent");
       expect(world.writeAttempts()).toBe(0);
     });
 
-    it("JSON round-trip cannot reconstruct a live capability", () => {
-      const exec = prepareOk();
+    it("JSON round-trip cannot reconstruct a live capability", async () => {
+      const exec = await prepareOk();
       const parsed = JSON.parse(JSON.stringify(exec)) as Executable;
       expect(parsed.__token).toBeUndefined();
-      expect(refund.commit(parsed).ok).toBe(false);
+      expect((await refund.commit(parsed)).ok).toBe(false);
       expect(world.writeAttempts()).toBe(0);
-      expect(refund.commit(exec).ok).toBe(true);
+      expect((await refund.commit(exec)).ok).toBe(true);
     });
 
-    it("BoundaryHandle has no write / refundOnce / evaluate", () => {
+    it("BoundaryHandle has no write / refundOnce / evaluate", async () => {
       expect(Object.keys(refund).sort()).toEqual([...BOUNDARY_HANDLE_KEYS].sort());
       expect(refund).not.toHaveProperty("write");
       expect(refund).not.toHaveProperty("evaluate");

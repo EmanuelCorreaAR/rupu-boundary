@@ -1,8 +1,9 @@
 /**
- * @rupu/boundary — public API (v0.1)
+ * @rupu/boundary — public API (v0.2 frozen)
  *
  * BoundarySpec<I,S,W> + propose → prepare → commit
- * Fixtures / fake bank are not part of the package surface.
+ * Fixtures stay out of the package surface.
+ * Production adapter: `@rupu/boundary/etag`
  */
 
 export { ok, err, matchResult, type Result, type Ok, type Err } from "./result.js";
