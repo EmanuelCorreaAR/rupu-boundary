@@ -1,6 +1,6 @@
 /**
  * Production adapter: SQL OCC via SELECT + UPDATE … WHERE version = $w.
- * Injectable query port — no pg/mysql dependency. Published as `@rupu/boundary/sql`.
+ * Injectable query port — no pg/mysql dependency. Published as `rupu-boundary/sql`.
  */
 
 import { err, ok, type Result } from "../result.js";

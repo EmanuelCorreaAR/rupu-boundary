@@ -1,6 +1,6 @@
 /**
  * Production adapter: DynamoDB-style GetItem + conditional UpdateItem.
- * Injectable store — no AWS SDK dependency. Published as `@rupu/boundary/dynamodb`.
+ * Injectable store — no AWS SDK dependency. Published as `rupu-boundary/dynamodb`.
  */
 
 import { err, ok, type Result } from "../result.js";

@@ -1,5 +1,5 @@
 /**
- * Real adapter (@rupu/boundary/etag) — fetch GET + PUT If-Match.
+ * Real adapter (rupu-boundary/etag) — fetch GET + PUT If-Match.
  */
 import { describe, expect, it, beforeEach } from "vitest";
 import { createEtagBoundary, type FetchLike } from "../src/adapters/etag.js";
@@ -63,7 +63,7 @@ function mockServer() {
   };
 }
 
-describe("@rupu/boundary/etag", () => {
+describe("rupu-boundary/etag", () => {
   beforeEach(() => resetVault());
 
   it("prepare → commit publishes with If-Match", async () => {

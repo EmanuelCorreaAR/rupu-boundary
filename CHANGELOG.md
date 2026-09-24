@@ -2,6 +2,10 @@
 
 ## 0.3.0
 
+### Package name
+
+- Published as **`rupu-boundary`** (unscoped). npm org/scope `@rupu` unavailable — same pattern as `rupu-sonda`. Subpaths: `rupu-boundary/etag`, `/dynamodb`, `/sql`, `/testing`.
+
 ### Generality evidence
 
 - Kill-tests: **DynamoDB-style ConditionExpression** and **SQL OCC** (`UPDATE … WHERE version`) keep exactly `propose → prepare → commit` — no new core verbs.
@@ -9,8 +13,8 @@
 
 ### Adapters (additive)
 
-- **`@rupu/boundary/dynamodb`**: `createDynamoBoundary` over injectable `DynamoStoreLike`.
-- **`@rupu/boundary/sql`**: `createSqlBoundary` over injectable `SqlQueryLike`.
+- **`rupu-boundary/dynamodb`**: `createDynamoBoundary` over injectable `DynamoStoreLike`.
+- **`rupu-boundary/sql`**: `createSqlBoundary` over injectable `SqlQueryLike`.
 
 ### Docs
 
@@ -26,7 +30,7 @@
 
 ### Adapter
 
-- **`@rupu/boundary/etag`**: production GET + PUT `If-Match` via injectable `fetch`.
+- **`rupu-boundary/etag`**: production GET + PUT `If-Match` via injectable `fetch`.
 
 ### Docs
 
@@ -34,5 +38,5 @@
 
 ## 0.1.0 — experimental (yanked naming era)
 
-- First `@rupu/boundary` spike: `createBoundary`, sealed `Executable`, T1, hostile/coverage/concurrency fixtures.
+- First `rupu-boundary` spike: `createBoundary`, sealed `Executable`, T1, hostile/coverage/concurrency fixtures.
 - Renamed from `@rupu/effect` before publish.

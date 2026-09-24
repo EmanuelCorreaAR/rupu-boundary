@@ -26,7 +26,7 @@ decision → observe → check → witness
 Node.js 18+.
 
 ```bash
-npm install @rupu/boundary
+npm install rupu-boundary
 ```
 
 
@@ -36,7 +36,7 @@ npm install @rupu/boundary
 import {
   createBoundary,
   type BoundarySpec,
-} from "@rupu/boundary";
+} from "rupu-boundary";
 
 const refund = createBoundary({
   parse,
@@ -55,9 +55,9 @@ const result = await refund.commit(executable);
 Adapters publicados (puertos inyectables; sin SDKs):
 
 ```ts
-import { createEtagBoundary } from "@rupu/boundary/etag";
-import { createDynamoBoundary } from "@rupu/boundary/dynamodb";
-import { createSqlBoundary } from "@rupu/boundary/sql";
+import { createEtagBoundary } from "rupu-boundary/etag";
+import { createDynamoBoundary } from "rupu-boundary/dynamodb";
+import { createSqlBoundary } from "rupu-boundary/sql";
 ```
 
 

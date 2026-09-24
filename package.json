@@ -1,5 +1,5 @@
 {
-  "name": "@rupu/boundary",
+  "name": "rupu-boundary",
   "version": "0.3.0",
   "description": "Capability protocol (propose→prepare→commit) for deferred authority over OCC write ports — ETag, Dynamo conditional, SQL version.",
   "type": "module",

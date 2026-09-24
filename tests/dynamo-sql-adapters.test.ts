@@ -68,7 +68,7 @@ function memSql(): SqlQueryLike & {
   };
 }
 
-describe("@rupu/boundary/dynamodb", () => {
+describe("rupu-boundary/dynamodb", () => {
   beforeEach(() => resetVault());
 
   it("prepare → commit conditional update", async () => {
@@ -96,7 +96,7 @@ describe("@rupu/boundary/dynamodb", () => {
   });
 });
 
-describe("@rupu/boundary/sql", () => {
+describe("rupu-boundary/sql", () => {
   beforeEach(() => resetVault());
 
   it("prepare → commit UPDATE WHERE version", async () => {

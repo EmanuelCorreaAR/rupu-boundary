@@ -1,6 +1,6 @@
 /**
  * Production adapter: HTTP resource publish via GET + PUT If-Match.
- * Outside test fixtures — published as `@rupu/boundary/etag`.
+ * Outside test fixtures — published as `rupu-boundary/etag`.
  */
 
 import { err, ok, type Result } from "../result.js";
