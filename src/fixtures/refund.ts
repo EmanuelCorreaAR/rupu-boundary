@@ -51,11 +51,16 @@ export type PaymentsWorld = {
     intent: RefundIntent,
     expectedVersion: number,
   ) => Result<void, WriteFailure>;
+  /** Hostility harness: how many times refundOnce was entered. */
+  readonly writeAttempts: () => number;
+  readonly successfulRefunds: () => number;
 };
 
 export function openPayments(): PaymentsWorld {
   const store = new Map<PaymentId, MutablePayment>();
   let writeTaken = false;
+  let attempts = 0;
+  let successes = 0;
 
   const observe = (id: PaymentId): PaymentState | null => {
     const p = store.get(id);
@@ -72,6 +77,7 @@ export function openPayments(): PaymentsWorld {
     intent: RefundIntent,
     expectedVersion: number,
   ): Result<void, WriteFailure> => {
+    attempts += 1;
     const p = store.get(intent.paymentId);
     if (!p) return err({ code: "not_found" });
     if (p.version !== expectedVersion) {
@@ -85,6 +91,7 @@ export function openPayments(): PaymentsWorld {
     }
     p.status = "REFUNDED";
     p.version += 1;
+    successes += 1;
     return ok(undefined);
   };
 
@@ -99,6 +106,8 @@ export function openPayments(): PaymentsWorld {
       store.set(id, { status, amount, version: 1 });
     },
     externalRefund: refundOnce,
+    writeAttempts: () => attempts,
+    successfulRefunds: () => successes,
   };
 }
 

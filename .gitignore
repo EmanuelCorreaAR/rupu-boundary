@@ -145,3 +145,12 @@ vite.config.ts.timestamp-*
 # Package build / publish artifacts (@rupu/boundary)
 dist/
 *.tgz
+
+# Local investigation notes — keep on disk, do not publish
+ALGEBRA.md
+CASE-C-SURVEY.md
+DURABLE-AUTHORITY.md
+EXPERIMENT.md
+GENERALITY.md
+NOTES.md
+PROPERTY.md

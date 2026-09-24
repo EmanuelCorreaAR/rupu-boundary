@@ -94,15 +94,24 @@ function seal<I, W>(intent: I, witness: W): Executable {
   return Object.freeze({ tag: "Executable", __token: token });
 }
 
-function consume<I, W>(
+/** Live capability lookup — does not spend. */
+function loadLive<I, W>(
   executable: Executable,
 ): Result<SealedBody<I, W>, string> {
   const body = vault.get(executable.__token);
   if (!body) return err("forged_or_unknown_executable");
   if (body.spent) return err("executable_already_spent");
+  return ok(body as SealedBody<I, W>);
+}
+
+/** Atomically spend a live capability. */
+function spend(executable: Executable): Result<void, string> {
+  const body = vault.get(executable.__token);
+  if (!body) return err("forged_or_unknown_executable");
+  if (body.spent) return err("executable_already_spent");
   body.spent = true;
   vault.delete(executable.__token);
-  return ok(body as SealedBody<I, W>);
+  return ok(undefined);
 }
 
 export function liveExecutableCount(): number {
@@ -113,9 +122,41 @@ export function resetVault(): void {
   vault.clear();
 }
 
-/** Structural equality for frozen witnesses (versions, etags, …). */
+/**
+ * Deep equality for witnesses: key-order independent, Object.is for leaves.
+ * Rejects BigInt (not a supported witness leaf). Does not treat missing vs
+ * `undefined` as equal, nor `NaN` as `null` (unlike JSON.stringify).
+ */
 export function witnessEq(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (typeof a === "bigint" || typeof b === "bigint") {
+    throw new TypeError("witness must not contain BigInt");
+  }
+  if (Object.is(a, b)) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return false;
+  if (typeof a !== "object") return false;
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!witnessEq(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const keysA = Object.keys(ao).sort();
+  const keysB = Object.keys(bo).sort();
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    if (keysA[i] !== keysB[i]) return false;
+  }
+  for (const k of keysA) {
+    if (!witnessEq(ao[k], bo[k])) return false;
+  }
+  return true;
 }
 
 /**
@@ -241,7 +282,7 @@ function buildBoundary<I, S, W>(
   const commit = (
     executable: Executable,
   ): Result<Committed<I>, CommitFailure<I>> => {
-    const sealed = consume<I, W>(executable);
+    const sealed = loadLive<I, W>(executable);
     if (!sealed.ok) {
       return err({ tag: "Spent", reason: sealed.error });
     }
@@ -251,6 +292,7 @@ function buildBoundary<I, S, W>(
     try {
       observed = spec.observe(intent);
     } catch (e) {
+      // Authority kept: observe never reached write — retryable.
       return err({
         tag: "Unknown",
         intent,
@@ -266,6 +308,8 @@ function buildBoundary<I, S, W>(
     }
 
     if (!witnessEq(witness, observed.value.witness)) {
+      // World moved under sealed evidence — this Executable is dead.
+      spend(executable);
       return err({
         tag: "Stale",
         intent,
@@ -273,10 +317,17 @@ function buildBoundary<I, S, W>(
       });
     }
 
+    // Spend before write: at-most-once attempt once freshness was confirmed.
+    const spent = spend(executable);
+    if (!spent.ok) {
+      return err({ tag: "Spent", reason: spent.error });
+    }
+
     let written: Result<void, WriteFailure>;
     try {
       written = write(intent, witness);
     } catch (e) {
+      // Spent already — Unknown here may mean write ran or not (adapter).
       return err({
         tag: "Unknown",
         intent,

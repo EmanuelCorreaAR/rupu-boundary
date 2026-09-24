@@ -75,10 +75,15 @@ El composition root sella el cliente de escritura dentro de `spec.write`. La apl
 | | |
 |---|---|
 | `Executable` opaco | el caller no lee ni setea `I`/`W` |
-| Un solo uso | replay → spent |
+| Un solo uso | replay → spent (tras freshness confirmada o Stale) |
 | Sellado en prepare | `I`/`W` van juntos |
 | Sin `evaluate` público | la autoridad solo nace de observe→check→seal |
 | `Stale` / `Unknown` / `Denied` explícitos | |
+| Retry tras `Unknown` de observe en commit | la capability **sigue viva** (write no se intentó) |
+
+`Proposal` es **DX**: fabricable; `parse` no es frontera de integridad. No lo uses como control de seguridad.
+
+`Unknown` tras `write` puede significar que el efecto remoto ocurrió o no — idempotencia = backend.
 
 
 ## Qué no es / no garantiza
@@ -101,6 +106,10 @@ npm test
 npm run typecheck
 npm run build
 ```
+
+Como consumidor hostil, las cinco garantías del refund adapter viven en
+`tests/hostile-consumer.test.ts`. El límite de Coverage (false-fresh con
+witness incompleto) está demostrado en `tests/coverage-hole.test.ts`.
 
 
 ## Status
