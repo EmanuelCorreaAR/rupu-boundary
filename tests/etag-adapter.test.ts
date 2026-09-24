@@ -11,7 +11,7 @@ function mockServer() {
   let seq = 1;
   let puts = 0;
 
-  const fetchImpl: FetchLike = async (url, init) => {
+  const fetchImpl: FetchLike = async (_url, init) => {
     const method = init?.method ?? "GET";
     if (method === "GET") {
       return {

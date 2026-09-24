@@ -231,7 +231,7 @@ export type CommitFailure<I> =
  * prepare/commit are async so adapters may use fetch I/O.
  * Provenance: Executable only from prepare → observe → check → seal.
  */
-export type BoundaryHandle<I, S, W = unknown> = {
+export type BoundaryHandle<I, S = unknown, W = unknown> = {
   readonly propose: (raw: unknown) => Result<Proposal<I>, ParseFailure>;
   readonly prepare: (
     proposal: Proposal<I>,
@@ -239,6 +239,8 @@ export type BoundaryHandle<I, S, W = unknown> = {
   readonly commit: (
     executable: Executable,
   ) => Promise<Result<Committed<I>, CommitFailure<I>>>;
+  /** Phantom — keeps S/W in the type; never set at runtime. */
+  readonly __types?: { readonly state: S; readonly witness: W };
 };
 
 /** Test / harness only — mint from a caller-supplied Observation. */

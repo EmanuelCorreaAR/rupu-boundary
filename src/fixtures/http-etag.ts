@@ -13,7 +13,6 @@ import {
   type DeniedReasons,
   type ParseFailure,
   type PolicyFailure,
-  type WriteFailure,
 } from "../runtime.js";
 
 export type HttpIntent = {
