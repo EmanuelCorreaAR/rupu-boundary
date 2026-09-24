@@ -4,7 +4,23 @@
 
 Parte de la familia **Rupu**.
 
-Frontera runtime pequeña en TypeScript entre decisiones y efectos del mundo real. Una decisión probabilística (agente, humano, cola, workflow) se convierte en autoridad sellada de un solo uso; el commit revalida el witness y ejecuta un write condicional.
+Una decisión puede ser válida cuando se toma y dejar de serlo antes de ejecutarse. Rupu Boundary hace explícito ese intervalo: observa, decide, sella un witness y, al commit, comprueba si ese witness sigue vigente antes del efecto.
+
+```text
+decision
+   │
+   ▼
+observe → check → witness
+   │
+   │   ...el mundo puede cambiar...
+   │
+   ▼
+re-observe → fresh | stale → effect?
+```
+
+En una frase: evita ejecutar una decisión en silencio contra un estado relevante distinto del que la justificó — **dentro de la cobertura del witness**.
+
+No importa quién decidió: agente, humano, cola, workflow o código normal.
 
 
 ## Install
@@ -15,7 +31,7 @@ Requiere Node.js 18+.
 npm install @rupu/boundary
 ```
 
-Estado: **0.1.0 experimental.**
+Estado: **0.1.0 — experimental.**
 
 
 ## Quick start
@@ -41,59 +57,85 @@ const result = refund.commit(executable);
 ```
 
 
-## Ciclo de vida
+## Lifecycle
 
 ```text
-decisión probabilística
-        │
-        ▼
-┌─────────────────────┐
-│    Rupu Boundary    │
-│  propose            │
-│     ↓               │
-│  prepare            │
-│     ↓               │
-│  commit             │
-└──────────┬──────────┘
-           │
-           ▼
- efecto determinista
+prepare = observe → check → seal(I, W)
+commit  = re-observe → compare(W) → Stale | write condicional
 ```
 
-```text
-prepare:  observe · check · seal(I, W)
-commit:   re-observe · compare W · Stale | write condicional
-```
-
-Álgebra congelada: `BoundarySpec<I,S,W>` — `S` decide, `W` ejecuta.
-
-
-## Garantías (bajo T1)
-
-El composition root sella el cliente de escritura dentro de `spec.write`. La aplicación solo recibe un `BoundaryHandle` (y después un `Executable`).
+`BoundarySpec<I, S, W>`:
 
 | | |
 |---|---|
-| `Executable` opaco | el caller no lee ni setea `I`/`W` |
-| Un solo uso | replay → spent (tras freshness confirmada o Stale) |
-| Sellado en prepare | `I`/`W` van juntos |
-| Sin `evaluate` público | la autoridad solo nace de observe→check→seal |
-| `Stale` / `Unknown` / `Denied` explícitos | |
-| Retry tras `Unknown` de observe en commit | la capability **sigue viva** (write no se intentó) |
+| **I** | intent — qué se quiere hacer |
+| **S** | state — qué hace falta para **decidir** |
+| **W** | witness — qué hace falta **probar al commit** |
 
-`Proposal` es **DX**: fabricable; `parse` no es frontera de integridad. No lo uses como control de seguridad.
-
-`Unknown` tras `write` puede significar que el efecto remoto ocurrió o no — idempotencia = backend.
+`S` y `W` no tienen por qué ser iguales.
 
 
-## Qué no es / no garantiza
+## Why
 
-- No es Effect-TS ni un effect system general
-- No elimina TOCTOU entre sistemas
-- No inventa Coverage / witness incompleto (obligación del adapter)
-- No aporta durabilidad entre procesos (host / workflow)
-- No aporta idempotencia ni atomicidad distribuida (backend)
-- No protege si las credenciales de write están ambient (T1 violado)
+Refund en `prepare`: status `CAPTURED`, amount `100`, version `42` → allow, witness `42`.
+
+Antes del commit otro proceso sube la version a `43`.
+
+Boundary re-observa: expected `42`, current `43` → **Stale** → no hay write.
+
+La pregunta no es “¿tenés permiso de refundear?”. Es “¿siguen vigentes las condiciones que justificaron *este* refund?”.
+
+
+## Boundary ≠ policy engine
+
+```text
+Policy / authz          →  ¿está permitida la acción?
+Rupu Boundary           →  ¿la decisión sigue válida contra el estado actual?
+```
+
+```text
+LLM / human / workflow / queue / rules
+              │
+              ▼
+         Rupu Boundary
+              │
+              ▼
+            effect
+```
+
+
+## Guarantees (T1)
+
+**T1:** el composition root sella la escritura en `spec.write`. La app solo ve `BoundaryHandle` y, tras prepare, un `Executable`.
+
+| Guarantee | Meaning |
+|---|---|
+| Opaque `Executable` | no se lee ni setea `I` / `W` |
+| Single-use | tras freshness o `Stale`, replay → spent |
+| Sealed prepare | `I` y `W` van juntos |
+| Sin `evaluate` público | autoridad solo de observe → check → seal |
+| Outcomes explícitos | `Stale`, `Unknown`, `Denied` |
+| Retry tras observe `Unknown` | si no se llegó al write, la capability sigue viva |
+
+`Proposal` es DX y fabricable — `parse` no es frontera de seguridad.
+
+`Unknown` después de `write` puede significar que el efecto ocurrió o no: idempotencia = backend.
+
+
+## Coverage
+
+Boundary solo puede detectar cambios que el **witness** representa.
+
+Si `check` depende de `currency` y `W` no la cubre, un `ARS → USD` entre prepare y commit puede seguir siendo **fresh** → *false-fresh*. Coverage es obligación del **adapter**.
+
+Demostrado en `tests/coverage-hole.test.ts`.
+
+
+## Qué no garantiza
+
+No es policy engine, authz, Effect-TS ni motor de workflows.
+
+No elimina TOCTOU multi-sistema, no inventa Coverage, no aporta durabilidad entre procesos, idempotencia remota ni atomicidad distribuida. Si el write client está ambient, T1 está roto.
 
 
 ## Development
@@ -107,16 +149,14 @@ npm run typecheck
 npm run build
 ```
 
-Como consumidor hostil, las cinco garantías del refund adapter viven en
-`tests/hostile-consumer.test.ts`. El límite de Coverage (false-fresh con
-witness incompleto) está demostrado en `tests/coverage-hole.test.ts`.
+Consumidor hostil (refund): `tests/hostile-consumer.test.ts`.
 
 
 ## Status
 
-**0.1.0** — `createBoundary` / `BoundarySpec<I,S,W>`; propose → prepare → commit; vault local bajo T1.
+**0.1.0 — experimental:** `createBoundary`, `BoundarySpec<I,S,W>`, propose → prepare → commit, vault local bajo T1.
 
-Research stop: no más papers para justificar el paquete. Una abstracción nueva entra solo si un caso real no se puede expresar sin romper las garantías de arriba.
+El core se mantiene deliberadamente chico.
 
 
 ## Apoyar el proyecto
