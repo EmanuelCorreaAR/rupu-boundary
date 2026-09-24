@@ -1,11 +1,11 @@
 /**
  * Concurrency-model kill-tests — same Boundary ADT, different authority mechanisms.
  *
- * OCC/version fixtures already exist. Here:
  *   1) HTTP ETag / If-Match — remote participates in freshness at write
  *   2) Blind remote POST — no CAS; TOCTOU after witnessEq is honest Committed
  *
- * Core must not grow http/remote special-cases.
+ * Dynamo + SQL OCC: see concurrency-dynamo-sql.test.ts (0.3 evidence).
+ * Core must not grow http/remote/Dynamo/SQL special-cases.
  */
 import { describe, expect, it, beforeEach } from "vitest";
 import {

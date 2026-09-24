@@ -4,9 +4,13 @@
 
 Parte de la familia **Rupu**.
 
-**0.2.0 — API estable (0.x sin breaks del core).** Contrato: [CONTRACT.md](./CONTRACT.md).
+**0.3.0 — API estable (0.x sin breaks del core).** Contrato: [CONTRACT.md](./CONTRACT.md).
 
-Boundary es un protocolo general para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
+Boundary es un **protocolo de capacidad** (`propose → prepare → commit`) para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
+
+No es un primitivo nuevo de concurrencia: CAS / If-Match / ConditionExpression / `UPDATE … WHERE version` siguen siendo del adapter.
+
+**Evidencia de generalidad (0.3):** el mismo lifecycle aguanta ETag, Dynamo conditional writes y SQL OCC en kill-tests + adapters publicados — sin verbos nuevos en el core.
 
 ```text
 decision → observe → check → witness
@@ -48,18 +52,12 @@ const executable = await refund.prepare(proposal);
 const result = await refund.commit(executable);
 ```
 
-HTTP con ETag (adapter publicado):
+Adapters publicados (puertos inyectables; sin SDKs):
 
 ```ts
 import { createEtagBoundary } from "@rupu/boundary/etag";
-
-const publish = createEtagBoundary({
-  fetch, // composition root: auth-bound fetch
-});
-
-const proposal = publish.propose({ url, body });
-const executable = await publish.prepare(proposal);
-const result = await publish.commit(executable);
+import { createDynamoBoundary } from "@rupu/boundary/dynamodb";
+import { createSqlBoundary } from "@rupu/boundary/sql";
 ```
 
 
@@ -101,7 +99,7 @@ npm install && npm test && npm run build
 
 ## Status
 
-**0.2.0** — core + `@rupu/boundary/etag` publicados; API estable en 0.x.
+**0.3.0** — core estable; adapters `etag` / `dynamodb` / `sql`; evidencia de generalidad sobre tres hinges de concurrencia.
 
 
 ## Apoyar el proyecto

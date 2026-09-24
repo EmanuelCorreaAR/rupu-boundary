@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0
+
+### Generality evidence
+
+- Kill-tests: **DynamoDB-style ConditionExpression** and **SQL OCC** (`UPDATE … WHERE version`) keep exactly `propose → prepare → commit` — no new core verbs.
+- Honest docs: capability protocol + adapter evidence; not “protocolo general” as a slogan without hinges.
+
+### Adapters (additive)
+
+- **`@rupu/boundary/dynamodb`**: `createDynamoBoundary` over injectable `DynamoStoreLike`.
+- **`@rupu/boundary/sql`**: `createSqlBoundary` over injectable `SqlQueryLike`.
+
+### Docs
+
+- CONTRACT / README: generality table; claim scoped to proven write ports.
+
 ## 0.2.0
 
 ### API estable

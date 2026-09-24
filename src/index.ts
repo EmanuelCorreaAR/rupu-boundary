@@ -1,9 +1,9 @@
 /**
- * @rupu/boundary — public API (v0.2 stable)
+ * @rupu/boundary — public API (v0.3 stable)
  *
  * BoundarySpec<I,S,W> + propose → prepare → commit
  * Fixtures stay out of the package surface.
- * Production adapter: `@rupu/boundary/etag`
+ * Adapters: `@rupu/boundary/etag` | `/dynamodb` | `/sql`
  */
 
 export { ok, err, matchResult, type Result, type Ok, type Err } from "./result.js";

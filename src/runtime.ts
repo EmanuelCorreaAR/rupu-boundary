@@ -188,7 +188,7 @@ export type CommitFailure<I> =
   | { readonly tag: "Write"; readonly error: WriteFailure };
 
 /**
- * Public app-facing surface (API stable at 0.2).
+ * Public app-facing surface (API stable at 0.3).
  * prepare/commit are async so adapters may use fetch I/O.
  * Provenance: Executable only from prepare → observe → check → seal.
  */

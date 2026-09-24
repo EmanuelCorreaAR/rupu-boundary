@@ -1,7 +1,7 @@
 {
   "name": "@rupu/boundary",
-  "version": "0.2.0",
-  "description": "Protocol to turn a decision into executable authority conditioned on observable evidence.",
+  "version": "0.3.0",
+  "description": "Capability protocol (propose→prepare→commit) for deferred authority over OCC write ports — ETag, Dynamo conditional, SQL version.",
   "type": "module",
   "license": "Apache-2.0",
   "private": false,
@@ -19,6 +19,14 @@
     "./etag": {
       "types": "./dist/src/adapters/etag.d.ts",
       "import": "./dist/src/adapters/etag.js"
+    },
+    "./dynamodb": {
+      "types": "./dist/src/adapters/dynamodb.d.ts",
+      "import": "./dist/src/adapters/dynamodb.js"
+    },
+    "./sql": {
+      "types": "./dist/src/adapters/sql.d.ts",
+      "import": "./dist/src/adapters/sql.js"
     }
   },
   "files": [
@@ -54,6 +62,8 @@
     "boundary",
     "occ",
     "etag",
+    "dynamodb",
+    "sql",
     "capabilities",
     "agents",
     "typescript"
