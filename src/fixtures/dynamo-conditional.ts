@@ -149,13 +149,10 @@ export function createDynamoPublishBoundary(world: DynamoWorld): DynamoBoundary 
           witness.version,
         );
         if (res === "conflict") {
-          return err({
-            code: "version_conflict",
-            detail: "ConditionExpression",
-          } satisfies WriteFailure);
+          return err({ tag: "Conflict" } satisfies WriteFailure);
         }
         if (res === "not_found") {
-          return err({ code: "not_found" });
+          return err({ tag: "Error", code: "not_found" });
         }
         return ok(undefined);
       },

@@ -3,7 +3,7 @@
  *
  * Same BoundarySpec lifecycle; different authority mechanism than local OCC rows.
  * W is an opaque ETag string. Freshness at write is enforced by the "server"
- * via If-Match (412 → version_conflict → Stale). No core HTTP special-cases.
+ * via If-Match (412 → Conflict → Stale). No core HTTP special-cases.
  */
 
 import { err, ok, type Result } from "../result.js";
@@ -156,10 +156,10 @@ export function createHttpPublishBoundary(world: HttpWorld): HttpBoundary {
       write: (intent, witness) => {
         const res = world.putIfMatch(intent.path, intent.body, witness.etag);
         if (res.status === 412) {
-          return err({ code: "version_conflict", detail: "412_precondition_failed" });
+          return err({ tag: "Conflict" });
         }
         if (res.status === 404) {
-          return err({ code: "not_found", detail: "404" });
+          return err({ tag: "Error", code: "not_found", detail: "404" });
         }
         return ok(undefined);
       },

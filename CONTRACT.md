@@ -1,62 +1,84 @@
-# Contract — rupu-boundary 0.3 (API estable)
+# Contract — rupu-boundary 0.4 (API estable)
 
 ## One-liner
 
-Boundary is a **capability protocol** (`propose → prepare → commit`) that turns a decision into executable authority conditioned on observable evidence, with freshness verifiable up to the last point the write port allows.
+**RupuBoundary** es un **protocolo de capacidad** (`propose → prepare → commit`) que convierte una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
 
-It is **not** a new concurrency primitive. Atomicity and Coverage remain obligations of the adapter / write port (CAS, If-Match, ConditionExpression, `UPDATE … WHERE version`, …).
+No es un primitivo nuevo de concurrencia. Atomicidad y Coverage siguen siendo obligaciones del adapter / write port (CAS, If-Match, ConditionExpression, `UPDATE … WHERE version`, …).
 
-## Generality (evidence, not slogan)
+## Generality (evidencia, no eslogan)
 
-| Evidence | Status |
+| Evidencia | Estado |
 |---|---|
-| Same lifecycle across domains (transfer / refund / inventory) | kill-tests |
-| Same lifecycle across concurrency hinges: local OCC, HTTP ETag, blind no-CAS (honest limit), **Dynamo conditional**, **SQL OCC** | kill-tests |
-| Published adapters: `etag`, `dynamodb`, `sql` (injectable ports; no SDKs) | 0.3 |
+| Mismo lifecycle en dominios (transfer / refund / inventory) | kill-tests |
+| Mismo lifecycle en hinges: OCC local, HTTP ETag, blind no-CAS (límite honesto), Dynamo conditional, SQL OCC | kill-tests |
+| Adapters publicados: `etag`, `dynamodb`, `sql` (puertos inyectables; sin SDKs) | 0.3+ |
 
-Claim we make: *the protocol shape generalizes across those write ports without new core verbs.*  
-Claim we do **not** make: *every backend is covered*, or *Coverage is checked by the core*.
+**Claim:** *la forma del protocolo generaliza sobre esos write ports sin verbos nuevos en el core.*  
+**No claim:** *todo backend está cubierto*, ni *el core verifica Coverage*.
 
 ## Public surface (estable en 0.x)
 
 | Export | Symbols |
 |---|---|
-| `rupu-boundary` | `createBoundary`, `BoundarySpec`, `BoundaryHandle`, ADTs (`Proposal`, `Executable`, `Committed`, `Stale`, `Denied`, `Unknown`, …), `all`, `witnessEq`, `Result` helpers |
-| `rupu-boundary/etag` | `createEtagBoundary` (GET + PUT `If-Match`) |
-| `rupu-boundary/dynamodb` | `createDynamoBoundary` (GetItem + conditional update port) |
-| `rupu-boundary/sql` | `createSqlBoundary` (SELECT + `UPDATE WHERE version` port) |
+| `rupu-boundary` | `createBoundary`, `BoundarySpec`, `BoundaryHandle`, ADTs, `all`, `witnessEq`, `releaseExecutable`, `Result` helpers |
+| `rupu-boundary/etag` | `createEtagBoundary` |
+| `rupu-boundary/dynamodb` | `createDynamoBoundary` |
+| `rupu-boundary/sql` | `createSqlBoundary` |
 | `rupu-boundary/testing` | harness only — not for app code |
 
 **Lifecycle:** `propose` (sync) → `prepare` (async) → `commit` (async).
 
-New **core** abstractions only if a real case cannot be expressed without breaking these guarantees — and then only at **1.0.0** (or later majors), never by quietly revising 0.3.
+Nuevas abstracciones de **core** solo si un caso real no se puede expresar sin romper estas garantías — y entonces solo en **1.0.0+**, nunca revisando 0.4 en silencio.
+
+## WriteFailure (0.4)
+
+El conflicto condicional es **estructural**, no un string del adapter:
+
+```ts
+type WriteFailure =
+  | { tag: "Conflict" }           // → commit Stale
+  | { tag: "Error"; code: string; detail?: string }  // → commit Write
+```
+
+El core no interpreta `"version_conflict"` ni códigos HTTP/SQL/Dynamo.
+
+## Witness (W)
+
+Por defecto `witnessEq` compara hojas JSON-like (objetos planos, arrays, escalares; `Object.is`). **No** soporta `Date`, `Uint8Array`, `BigInt` ni instancias de clase.
+
+Para W opaco: inyectá `compareWitness` en `BoundarySpec` (no es un verbo del lifecycle).
+
+## Executable / vault
+
+`Executable` es opaco y de un solo uso **en proceso**. Prepare abandonado (sin `commit`) permanece en el vault hasta `releaseExecutable(exec)` o fin de proceso. Sin durabilidad cross-process.
 
 ## Guarantees (T1)
 
-Composition root seals write capability into `spec.write`. App holds `BoundaryHandle` / `Executable` only.
+Composition root sella write en `spec.write`. La app solo tiene `BoundaryHandle` / `Executable`.
 
-- Opaque, single-use `Executable` (spent after confirmed fresh attempt or `Stale`)
-- No public `evaluate` on the app handle
-- Explicit `Stale` / `Unknown` / `Denied` / `Spent` / `Write`
-- Observe failure on commit does **not** spend (retryable); write attempt does
+- `Executable` opaco, single-use (spent tras intento fresco confirmado o `Stale`)
+- Sin `evaluate` público en el handle de app
+- ADTs explícitos: `Stale` / `Unknown` / `Denied` / `Spent` / `Write`
+- Fallo de observe en commit **no** gasta (reintentable); el intento de write sí
 
 ## Not guaranteed
 
-- Coverage completeness (`check` deps ⊆ witness / condition) — adapter obligation
-- Atomicity from freshness check to remote write, unless write port provides it
-- Durability of `Executable` across processes
-- Idempotency of remote effects
-- Safety if write credentials are ambient (T1 violated)
-- `Proposal` / `parse` integrity (`Proposal` is forgeable DX)
+- Coverage completa (`check` deps ⊆ witness / condition) — obligación del adapter
+- Atomicidad desde freshness check hasta write remoto, salvo que el write port la provea
+- Durabilidad de `Executable` entre procesos
+- Idempotencia de efectos remotos
+- Seguridad si las credenciales de write son ambient (viola T1)
+- Integridad de `Proposal` / `parse` (`Proposal` es DX forgeable)
 
 ## Semver
 
-**Estable significa: no rompemos esta superficie en 0.x.**
+**Estable significa: no rompemos esta superficie en 0.x** — salvo el ajuste documentado de forma de `WriteFailure` en 0.4 (migración: `{ code: "version_conflict" }` → `{ tag: "Conflict" }`).
 
 | Range | Allowed |
 |---|---|
-| **0.3.x** | Solo bugfixes sobre la superficie de arriba |
-| **0.4+** (0.x) | Solo aditivo: adapters nuevos (`rupu-boundary/…`), docs, helpers opcionales que no cambien firmas ni semántica existentes |
-| **1.0.0** | Primera oportunidad de *revisar a propósito* el contrato del core si 0.3 estaba mal — con nota de migración. Preferimos llevar la semántica de 0.3 a 1.0 si aguantó. |
+| **0.4.x** | Bugfixes sobre la superficie de arriba |
+| **0.5+** (0.x) | Solo aditivo: adapters, docs, helpers opcionales |
+| **1.0.0** | Primera revisión a propósito del core si hace falta — con nota de migración |
 
-Si no podemos cumplir la promesa sin un break antes de 1.0, lo decimos en el changelog y retiramos el claim de estabilidad — **no** publicamos un minor 0.x con breaking change silencioso.
+Si no podemos cumplir la promesa sin un break antes de 1.0, lo decimos en el changelog — **no** publicamos un minor 0.x con breaking change silencioso.

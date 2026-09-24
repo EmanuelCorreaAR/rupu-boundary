@@ -79,15 +79,15 @@ export function openPayments(): PaymentsWorld {
   ): Result<void, WriteFailure> => {
     attempts += 1;
     const p = store.get(intent.paymentId);
-    if (!p) return err({ code: "not_found" });
+    if (!p) return err({ tag: "Error", code: "not_found" });
     if (p.version !== expectedVersion) {
-      return err({ code: "version_conflict" });
+      return err({ tag: "Conflict" });
     }
     if (p.status !== "CAPTURED") {
-      return err({ code: "invalid_status", detail: p.status });
+      return err({ tag: "Error", code: "invalid_status", detail: p.status });
     }
     if (intent.amount !== p.amount) {
-      return err({ code: "amount_mismatch" });
+      return err({ tag: "Error", code: "amount_mismatch" });
     }
     p.status = "REFUNDED";
     p.version += 1;

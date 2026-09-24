@@ -111,7 +111,10 @@ function parseTransfer(raw: unknown): Result<TransferIntent, ParseFailure> {
 }
 
 function mapWriteError(e: TransferFailure): WriteFailure {
-  return { code: e.code, detail: JSON.stringify(e) };
+  if (e.code === "version_conflict") {
+    return { tag: "Conflict" };
+  }
+  return { tag: "Error", code: e.code, detail: JSON.stringify(e) };
 }
 
 export type TransferBoundary = BoundaryHandle<

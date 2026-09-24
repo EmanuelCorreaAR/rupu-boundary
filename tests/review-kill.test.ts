@@ -22,8 +22,8 @@ describe("A — witnessEq", () => {
     expect(witnessEq({ x: NaN }, { x: NaN })).toBe(true);
   });
 
-  it("BigInt is rejected", async () => {
-    expect(() => witnessEq({ n: 1n }, { n: 1n })).toThrow(/BigInt/);
+  it("rejects non-plain object witnesses (use compareWitness)", () => {
+    expect(() => witnessEq(new Date(), new Date())).toThrow(/compareWitness/);
   });
 });
 

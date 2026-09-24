@@ -1,16 +1,16 @@
 # RupuBoundary
 
-**Probabilistic decisions. Deterministic effects.**
+**Capability protocol (`propose → prepare → commit`) for deferred authority over OCC write ports — ETag, Dynamo conditional, SQL version.**
 
 Parte de la familia **Rupu**.
 
-**0.3.0 — API estable (0.x sin breaks del core).** Contrato: [CONTRACT.md](./CONTRACT.md).
+**0.4.0 — API estable (0.x).** Contrato: [CONTRACT.md](./CONTRACT.md).
 
-**RupuBoundary** es un **protocolo de capacidad** (`propose → prepare → commit`) para convertir una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
+**RupuBoundary** convierte una decisión en autoridad ejecutable condicionada por evidencia observable, con freshness verificable hasta el último punto que permita el write port.
 
 No es un primitivo nuevo de concurrencia: CAS / If-Match / ConditionExpression / `UPDATE … WHERE version` siguen siendo del adapter.
 
-**Evidencia de generalidad (0.3):** el mismo lifecycle aguanta ETag, Dynamo conditional writes y SQL OCC en kill-tests + adapters publicados — sin verbos nuevos en el core.
+**Evidencia de generalidad:** el mismo lifecycle aguanta ETag, Dynamo conditional writes y SQL OCC — sin verbos nuevos en el core.
 
 ```text
 decision → observe → check → witness
@@ -85,7 +85,7 @@ RupuBoundary     →  ¿la decisión sigue válida contra el estado actual?
 
 ## Guarantees (T1) / límites
 
-Ver [CONTRACT.md](./CONTRACT.md). Resumen: `Executable` opaco y de un solo uso; Coverage y atomicidad remota son del adapter/write port; `Proposal` es DX.
+Ver [CONTRACT.md](./CONTRACT.md). Resumen: `Executable` opaco y de un solo uso; conflicto de write es `{ tag: "Conflict" }`; Coverage y atomicidad remota son del adapter; prepare abandonado → `releaseExecutable`.
 
 
 ## Development
@@ -99,12 +99,12 @@ npm install && npm test && npm run build
 
 ## Status
 
-**0.3.0** — core estable; adapters `etag` / `dynamodb` / `sql`; evidencia de generalidad sobre tres hinges de concurrencia.
+**0.4.0** — core estable; adapters `etag` / `dynamodb` / `sql`; `WriteFailure` estructural; `compareWitness` opcional.
 
 
 ## Apoyar el proyecto
 
-[cafecito.app/emacorreadev](https://cafecito.app/emacorreadev)
+Si RupuBoundary te sirve, podés invitarme un cafecito: [cafecito.app/emacorreadev](https://cafecito.app/emacorreadev)
 
 
 ## License

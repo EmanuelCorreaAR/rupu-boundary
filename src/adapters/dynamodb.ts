@@ -129,13 +129,10 @@ export function createDynamoBoundary(
           throw e instanceof Error ? e : new Error("dynamo_update_failed");
         }
         if (res === "conflict") {
-          return err({
-            code: "version_conflict",
-            detail: "ConditionalCheckFailed",
-          } satisfies WriteFailure);
+          return err({ tag: "Conflict" } satisfies WriteFailure);
         }
         if (res === "not_found") {
-          return err({ code: "not_found" });
+          return err({ tag: "Error", code: "not_found" });
         }
         return ok(undefined);
       },

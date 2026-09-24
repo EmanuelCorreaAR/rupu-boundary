@@ -90,12 +90,12 @@ export function openHoleWorld(): HoleWorld {
   ): Result<void, WriteFailure> => {
     attempts += 1;
     const p = store.get(intent.paymentId);
-    if (!p) return err({ code: "not_found" });
+    if (!p) return err({ tag: "Error", code: "not_found" });
     if (p.statusAmountVersion !== expectedVersion) {
-      return err({ code: "version_conflict" });
+      return err({ tag: "Conflict" });
     }
     if (p.status !== "CAPTURED") {
-      return err({ code: "invalid_status", detail: p.status });
+      return err({ tag: "Error", code: "invalid_status", detail: p.status });
     }
     // Write also does NOT re-check currency — hole extends into write.
     p.status = "REFUNDED";

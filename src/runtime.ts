@@ -58,7 +58,15 @@ export type Executable = {
   readonly __token: symbol;
 };
 
-export type WriteFailure = { readonly code: string; readonly detail?: string };
+/**
+ * Adapter write outcome. Conflict is structural — core must not parse
+ * adapter-specific strings like "version_conflict".
+ */
+export type WriteFailure =
+  | { readonly tag: "Conflict" }
+  | { readonly tag: "Error"; readonly code: string; readonly detail?: string };
+
+export type WriteError = Extract<WriteFailure, { readonly tag: "Error" }>;
 
 export type ObserveError = { readonly code: string; readonly detail?: string };
 
@@ -67,6 +75,13 @@ export type Observation<S, W> = {
   readonly state: S;
   readonly witness: W;
 };
+
+/**
+ * Default witness leaves: JSON-like scalars + plain objects/arrays.
+ * Not supported by default witnessEq: Date, Uint8Array, BigInt, class instances.
+ * Inject `compareWitness` on the spec for opaque revisions.
+ */
+export type WitnessCompare<W> = (a: W, b: W) => boolean;
 
 /**
  * Public algebra — observe/write may be sync or async (fetch adapters).
@@ -83,6 +98,11 @@ export type BoundarySpec<I, S, W> = {
     input: I,
     witness: W,
   ) => Result<void, WriteFailure> | Promise<Result<void, WriteFailure>>;
+  /**
+   * Optional — not a lifecycle verb. Defaults to witnessEq.
+   * Use for opaque W (bytes, custom revision tokens).
+   */
+  readonly compareWitness?: WitnessCompare<W>;
 };
 
 type SealedBody<I, W> = {
@@ -91,6 +111,7 @@ type SealedBody<I, W> = {
   spent: boolean;
 };
 
+/** Strong map for test reset; production should release abandoned Executables. */
 const vault = new Map<symbol, SealedBody<unknown, unknown>>();
 
 function seal<I, W>(intent: I, witness: W): Executable {
@@ -119,6 +140,14 @@ function spend(executable: Executable): Result<void, string> {
   return ok(undefined);
 }
 
+/**
+ * Drop a live Executable without commit (client abort / abandoned prepare).
+ * Idempotent. Not a lifecycle verb — memory ownership only.
+ */
+export function releaseExecutable(executable: Executable): void {
+  vault.delete(executable.__token);
+}
+
 export function liveExecutableCount(): number {
   return vault.size;
 }
@@ -128,9 +157,8 @@ export function resetVault(): void {
 }
 
 /**
- * Deep equality for witnesses: key-order independent, Object.is for leaves.
- * Rejects BigInt (not a supported witness leaf). Does not treat missing vs
- * `undefined` as equal, nor `NaN` as `null` (unlike JSON.stringify).
+ * Deep equality for JSON-like witnesses: key-order independent, Object.is leaves.
+ * Rejects BigInt. Does not support Date / TypedArray / class instances.
  */
 export function witnessEq(a: unknown, b: unknown): boolean {
   if (typeof a === "bigint" || typeof b === "bigint") {
@@ -148,6 +176,17 @@ export function witnessEq(a: unknown, b: unknown): boolean {
       if (!witnessEq(a[i], b[i])) return false;
     }
     return true;
+  }
+
+  if (Object.getPrototypeOf(a) !== Object.prototype) {
+    throw new TypeError(
+      "witnessEq: only plain objects/arrays/scalars — inject compareWitness for opaque W",
+    );
+  }
+  if (Object.getPrototypeOf(b) !== Object.prototype) {
+    throw new TypeError(
+      "witnessEq: only plain objects/arrays/scalars — inject compareWitness for opaque W",
+    );
   }
 
   const ao = a as Record<string, unknown>;
@@ -185,10 +224,10 @@ export type CommitFailure<I> =
   | Stale<I>
   | Unknown<I>
   | { readonly tag: "Spent"; readonly reason: string }
-  | { readonly tag: "Write"; readonly error: WriteFailure };
+  | { readonly tag: "Write"; readonly error: WriteError };
 
 /**
- * Public app-facing surface (API stable at 0.3).
+ * Public app-facing surface (API stable at 0.4).
  * prepare/commit are async so adapters may use fetch I/O.
  * Provenance: Executable only from prepare → observe → check → seal.
  */
@@ -232,6 +271,9 @@ function buildBoundary<I, S, W>(
 ): BoundaryHandle<I, S, W> | BoundaryTestHandle<I, S, W> {
   const { parse, spec } = input;
   const write = spec.write;
+  const compareWitness: WitnessCompare<W> =
+    spec.compareWitness ??
+    ((a, b) => witnessEq(a, b));
 
   const propose = (raw: unknown): Result<Proposal<I>, ParseFailure> => {
     const parsed = parse(raw);
@@ -313,7 +355,7 @@ function buildBoundary<I, S, W>(
       });
     }
 
-    if (!witnessEq(witness, observed.value.witness)) {
+    if (!compareWitness(witness, observed.value.witness)) {
       // World moved under sealed evidence — this Executable is dead.
       spend(executable);
       return err({
@@ -342,11 +384,11 @@ function buildBoundary<I, S, W>(
     }
 
     if (!written.ok) {
-      if (written.error.code === "version_conflict") {
+      if (written.error.tag === "Conflict") {
         return err({
           tag: "Stale",
           intent,
-          reason: "cas_version_conflict",
+          reason: "conditional_write_conflict",
         });
       }
       return err({ tag: "Write", error: written.error });

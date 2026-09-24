@@ -68,12 +68,12 @@ export function openWarehouse(): WarehouseWorld {
     expectedVersion: number,
   ): Result<void, WriteFailure> => {
     const s = store.get(intent.sku);
-    if (!s) return err({ code: "not_found" });
+    if (!s) return err({ tag: "Error", code: "not_found" });
     if (s.version !== expectedVersion) {
-      return err({ code: "version_conflict" });
+      return err({ tag: "Conflict" });
     }
     if (s.available < intent.qty) {
-      return err({ code: "insufficient_stock" });
+      return err({ tag: "Error", code: "insufficient_stock" });
     }
     s.available -= intent.qty;
     s.version += 1;

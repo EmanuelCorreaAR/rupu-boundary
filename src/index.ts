@@ -1,5 +1,5 @@
 /**
- * rupu-boundary — public API (v0.3 stable)
+ * rupu-boundary — public API (v0.4 stable)
  *
  * BoundarySpec<I,S,W> + propose → prepare → commit
  * Fixtures stay out of the package surface.
@@ -12,6 +12,7 @@ export {
   createBoundary,
   all,
   witnessEq,
+  releaseExecutable,
   BOUNDARY_HANDLE_KEYS,
   type BoundaryHandle,
   type BoundarySpec,
@@ -27,5 +28,7 @@ export {
   type CommitFailure,
   type ParseFailure,
   type WriteFailure,
+  type WriteError,
+  type WitnessCompare,
   type ObserveError,
 } from "./runtime.js";

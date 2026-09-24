@@ -139,10 +139,7 @@ export function createSqlPublishBoundary(world: SqlWorld): SqlBoundary {
           witness.version,
         );
         if (res.rowCount === 0) {
-          return err({
-            code: "version_conflict",
-            detail: "UPDATE_WHERE_version",
-          } satisfies WriteFailure);
+          return err({ tag: "Conflict" } satisfies WriteFailure);
         }
         return ok(undefined);
       },

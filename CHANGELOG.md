@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0
+
+### Core
+
+- **`WriteFailure` estructural:** `{ tag: "Conflict" } | { tag: "Error"; code; detail? }`. El core ya no interpreta el string `"version_conflict"`.
+- **`compareWitness` opcional** en `BoundarySpec` (no es verbo del lifecycle). `witnessEq` documentado: solo JSON-like / objetos planos.
+- **`releaseExecutable`:** soltar prepare abandonado del vault in-process (memory ownership).
+
+### Docs
+
+- One-liner / CONTRACT en español; tagline técnica en README (ya no solo el eslogan de familia).
+- Paquete unscoped `rupu-boundary` (scope `@rupu` no disponible en npm).
+
+### Migration from 0.3
+
+```ts
+// before
+err({ code: "version_conflict" })
+// after
+err({ tag: "Conflict" })
+
+// other write errors
+err({ tag: "Error", code: "not_found" })
+```
+
 ## 0.3.0
 
 ### Package name
@@ -38,5 +63,5 @@
 
 ## 0.1.0 — experimental (yanked naming era)
 
-- First `rupu-boundary` spike: `createBoundary`, sealed `Executable`, T1, hostile/coverage/concurrency fixtures.
+- First spike: `createBoundary`, sealed `Executable`, T1, hostile/coverage/concurrency fixtures.
 - Renamed from `@rupu/effect` before publish.

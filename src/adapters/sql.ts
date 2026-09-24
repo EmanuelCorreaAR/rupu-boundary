@@ -129,10 +129,7 @@ export function createSqlBoundary(
           throw e instanceof Error ? e : new Error("sql_update_failed");
         }
         if (res.rowCount === 0) {
-          return err({
-            code: "version_conflict",
-            detail: "UPDATE_WHERE_version",
-          } satisfies WriteFailure);
+          return err({ tag: "Conflict" } satisfies WriteFailure);
         }
         return ok(undefined);
       },

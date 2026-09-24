@@ -6,5 +6,6 @@ export {
   createBoundaryForTests,
   resetVault,
   liveExecutableCount,
+  releaseExecutable,
   type BoundaryTestHandle,
 } from "./runtime.js";

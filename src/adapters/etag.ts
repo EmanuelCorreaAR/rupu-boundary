@@ -133,16 +133,13 @@ export function createEtagBoundary(
           throw e instanceof Error ? e : new Error("fetch_failed");
         }
         if (res.status === 412) {
-          return err({
-            code: "version_conflict",
-            detail: "412_precondition_failed",
-          } satisfies WriteFailure);
+          return err({ tag: "Conflict" } satisfies WriteFailure);
         }
         if (res.status === 404) {
-          return err({ code: "not_found" });
+          return err({ tag: "Error", code: "not_found" });
         }
         if (!res.ok) {
-          return err({ code: `http_${res.status}` });
+          return err({ tag: "Error", code: `http_${res.status}` });
         }
         return ok(undefined);
       },
