@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Runtime boundary between decisions and real-world effects.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "private": false,
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",

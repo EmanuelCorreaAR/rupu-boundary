@@ -1,10 +1,24 @@
-# @rupu/boundary
-
-**Rupu Boundary**
-
-Una frontera runtime pequeña en TypeScript entre decisiones y efectos del mundo real.
+# Rupu Boundary
 
 **Probabilistic decisions. Deterministic effects.**
+
+Parte de la familia **Rupu**.
+
+Frontera runtime pequeña en TypeScript entre decisiones y efectos del mundo real. Una decisión probabilística (agente, humano, cola, workflow) se convierte en autoridad sellada de un solo uso; el commit revalida el witness y ejecuta un write condicional.
+
+
+## Install
+
+Requiere Node.js 18+.
+
+```bash
+npm install @rupu/boundary
+```
+
+Estado: **0.1.0 experimental.**
+
+
+## Quick start
 
 ```ts
 import {
@@ -25,6 +39,7 @@ const proposal = refund.propose(input);
 const executable = refund.prepare(proposal);
 const result = refund.commit(executable);
 ```
+
 
 ## Ciclo de vida
 
@@ -50,9 +65,12 @@ prepare:  observe · check · seal(I, W)
 commit:   re-observe · compare W · Stale | write condicional
 ```
 
-## Garantías del runtime (bajo T1)
+Álgebra congelada: `BoundarySpec<I,S,W>` — `S` decide, `W` ejecuta.
 
-El composition root sella el cliente de escritura dentro de `spec.write`. El código de aplicación solo recibe un `BoundaryHandle` (y después un `Executable`).
+
+## Garantías (bajo T1)
+
+El composition root sella el cliente de escritura dentro de `spec.write`. La aplicación solo recibe un `BoundaryHandle` (y después un `Executable`).
 
 | | |
 |---|---|
@@ -62,30 +80,41 @@ El composition root sella el cliente de escritura dentro de `spec.write`. El có
 | Sin `evaluate` público | la autoridad solo nace de observe→check→seal |
 | `Stale` / `Unknown` / `Denied` explícitos | |
 
-## No garantizado (a propósito)
 
-- TOCTOU entre sistemas  
-- Witness incompleto / agujeros de Coverage (obligación del adapter)  
-- Durabilidad entre procesos (host / workflow)  
-- Idempotencia (backend)  
-- Atomicidad distribuida  
-- Seguridad si las credenciales de write están ambient (T1 violado)  
+## Qué no es / no garantiza
 
-## Install / estado
+- No es Effect-TS ni un effect system general
+- No elimina TOCTOU entre sistemas
+- No inventa Coverage / witness incompleto (obligación del adapter)
+- No aporta durabilidad entre procesos (host / workflow)
+- No aporta idempotencia ni atomicidad distribuida (backend)
+- No protege si las credenciales de write están ambient (T1 violado)
 
-**0.1.0 experimental.** Álgebra congelada: `BoundarySpec<I,S,W>` (`S` decide, `W` ejecuta).
+
+## Development
 
 ```bash
+git clone https://github.com/EmanuelCorreaAR/rupu-boundary.git
+cd rupu-boundary
 npm install
 npm test
 npm run typecheck
 npm run build
 ```
 
-## Research stop
 
-No más papers para justificar el paquete. Una abstracción nueva entra solo si un caso real no se puede expresar sin romper las garantías de arriba.
+## Status
 
-## Cafecito
+**0.1.0** — `createBoundary` / `BoundarySpec<I,S,W>`; propose → prepare → commit; vault local bajo T1.
+
+Research stop: no más papers para justificar el paquete. Una abstracción nueva entra solo si un caso real no se puede expresar sin romper las garantías de arriba.
+
+
+## Apoyar el proyecto
 
 Si Rupu Boundary te sirve, podés invitarme un cafecito: [cafecito.app/emacorreadev](https://cafecito.app/emacorreadev)
+
+
+## License
+
+Apache License 2.0
